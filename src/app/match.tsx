@@ -246,8 +246,8 @@ export default function MatchScreen() {
               </Text>
 
               <View style={styles.cardFoot}>
-                <Text style={styles.gamesCaption}>{state.phase === 'superTiebreak' ? 'PUNTOS' : 'GAMES'}</Text>
-                {state.phase === 'superTiebreak' ? null : <Text style={styles.games}>{state.games[team]}</Text>}
+                <Text style={styles.gamesCaption}>GAMES</Text>
+                <Text style={styles.games}>{state.games[team]}</Text>
                 <View style={[styles.plusPill, { borderColor: `${accent}55`, backgroundColor: `${accent}16` }]}>
                   <Text style={[styles.plus, { color: accent }]}>+1</Text>
                 </View>

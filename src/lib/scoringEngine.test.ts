@@ -408,59 +408,59 @@ describe('match points, break points and the deciding super tie-break', () => {
     assert.equal(alerts.some((alert) => alert.type === 'breakPoint' && alert.team === 0), false);
   });
 
-  it('replaces the deciding set with a super tie-break to 11, win by two', () => {
-    const enabled = setup({ decidingSuperTiebreak: true, setsFormat: 3 });
-    let state = bagel(enabled, createInitialState(), 0);
-    state = bagel(enabled, state, 1);
-    assert.equal(state.phase, 'superTiebreak');
-    assert.deepEqual(state.points, [0, 0]);
+  it('plays a super tie-break to 11 at 6-6 and still plays the deciding set', () => {
+    const config = setup({ decidingSuperTiebreak: true, setsFormat: 3 });
+    let state = bagel(config, createInitialState(), 0);
+    state = bagel(config, state, 1);
+    assert.equal(state.phase, 'regular');
     assert.equal(state.status, 'live');
+    assert.deepEqual(state.games, [0, 0]);
 
-    const disabled = setup({ decidingSuperTiebreak: false, setsFormat: 3 });
-    let regular = bagel(disabled, createInitialState(), 0);
-    regular = bagel(disabled, regular, 1);
-    assert.equal(regular.phase, 'regular');
+    const sixAll = toSixAll(config, state);
+    assert.equal(sixAll.phase, 'superTiebreak');
+    assert.deepEqual(sixAll.games, [6, 6]);
+    assert.ok(getAlerts(config, sixAll).some((alert) => alert.type === 'superTiebreak'));
 
-    const short = play(enabled, state, [...times(1, 9), ...times(0, 10)]);
-    assert.deepEqual(short.points, [10, 9]);
-    assert.equal(short.status, 'live');
-    assert.ok(getAlerts(enabled, short).some((alert) => alert.type === 'matchPoint' && alert.team === 0));
+    const tenNine = play(config, sixAll, [...times(1, 9), ...times(0, 10)]);
+    assert.deepEqual(tenNine.points, [10, 9]);
+    assert.equal(tenNine.phase, 'superTiebreak');
+    assert.equal(tenNine.status, 'live');
+    assert.ok(getAlerts(config, tenNine).some((alert) => alert.type === 'matchPoint' && alert.team === 0));
 
-    const level = awardPoint(enabled, short, 1);
+    const level = awardPoint(config, tenNine, 1);
     assert.deepEqual(level.points, [10, 10]);
-    assert.equal(getAlerts(enabled, level).some((alert) => alert.type === 'matchPoint'), false);
+    assert.equal(getAlerts(config, level).some((alert) => alert.type === 'matchPoint'), false);
 
-    const elevenTen = awardPoint(enabled, level, 0);
-    assert.deepEqual(elevenTen.points, [11, 10]);
-    assert.equal(elevenTen.status, 'live');
-    assert.ok(getAlerts(enabled, elevenTen).some((alert) => alert.type === 'matchPoint' && alert.team === 0));
-
-    const won = play(enabled, state, [...times(1, 9), ...times(0, 11)]);
+    const won = play(config, sixAll, [...times(1, 9), ...times(0, 11)]);
     assert.equal(won.status, 'finished');
     assert.equal(won.winner, 0);
+    assert.equal(won.sets.length, 3);
     assert.equal(won.sets[2]?.superTiebreak, true);
-    assert.deepEqual(won.sets[2]?.games, [11, 9]);
+    assert.deepEqual(won.sets[2]?.games, [7, 6]);
+    assert.deepEqual(won.sets[2]?.tiebreak, [11, 9]);
+    assert.equal(formatSetScore(won.sets[2]!), '7-6(9)');
 
-    const extended = play(enabled, level, [0, 0]);
+    const extended = play(config, level, [0, 0]);
     assert.equal(extended.status, 'finished');
-    assert.deepEqual(extended.sets[2]?.games, [12, 10]);
-    assert.equal(formatSetScore(extended.sets[2]!), '12-10');
+    assert.deepEqual(extended.sets[2]?.tiebreak, [12, 10]);
+    assert.equal(formatSetScore(extended.sets[2]!), '7-6(10)');
   });
 
-  it('waits until 2-2 to start a super tie-break in a best of five', () => {
+  it('keeps a best of five on a full set at 1-1 and uses the super tie-break only at 6-6', () => {
     const config = setup({ setsFormat: 5, decidingSuperTiebreak: true });
     let state = bagel(config, createInitialState(), 0);
     state = bagel(config, state, 1);
     assert.equal(state.phase, 'regular');
-    state = bagel(config, state, 0);
-    state = bagel(config, state, 1);
+    state = toSixAll(config, state);
     assert.equal(state.phase, 'superTiebreak');
-    assert.equal(state.sets.length, 4);
+    assert.equal(state.sets.length, 2);
   });
 
-  it('turns the super tie-break off for a one-set match', () => {
+  it('allows a super tie-break in a one-set match', () => {
     const config = setup({ setsFormat: 1, decidingSuperTiebreak: true });
-    assert.equal(config.decidingSuperTiebreak, false);
+    assert.equal(config.decidingSuperTiebreak, true);
+    const sixAll = toSixAll(config, createInitialState());
+    assert.equal(sixAll.phase, 'superTiebreak');
   });
 });
 
@@ -586,48 +586,43 @@ describe('editing a match that is already underway', () => {
     assert.deepEqual(next.games, [0, 0]);
   });
 
-  it('switches a scoreless deciding set into and out of the super tie-break', () => {
-    const config = setup({ setsFormat: 3, decidingSuperTiebreak: true });
-    let state = bagel(config, createInitialState(), 0);
-    state = bagel(config, state, 1);
-    assert.equal(state.phase, 'superTiebreak');
+  it('uses the selected tie-break length at 6-6 before the first point', () => {
+    const regular = setup({ setsFormat: 3, decidingSuperTiebreak: false });
+    const sixAll = toSixAll(regular, createInitialState());
+    assert.equal(sixAll.phase, 'tiebreak');
 
-    const regular = applyConfigToState({ ...config, decidingSuperTiebreak: false }, state);
-    assert.equal(regular.phase, 'regular');
-    assert.deepEqual(regular.points, [0, 0]);
+    const asSuper = applyConfigToState({ ...regular, decidingSuperTiebreak: true }, sixAll);
+    assert.equal(asSuper.phase, 'superTiebreak');
+    assert.deepEqual(asSuper.games, [6, 6]);
+    assert.deepEqual(asSuper.points, [0, 0]);
 
-    const back = applyConfigToState(config, regular);
-    assert.equal(back.phase, 'superTiebreak');
+    const started = awardPoint({ ...regular, decidingSuperTiebreak: true }, asSuper, 0);
+    const unchanged = applyConfigToState(regular, started);
+    assert.equal(unchanged.phase, 'superTiebreak');
+    assert.deepEqual(unchanged.points, [1, 0]);
   });
 
-  it('does not convert the opening set or a started set', () => {
+  it('does not turn the start of a set into a tie-break', () => {
     const config = setup({ setsFormat: 3, decidingSuperTiebreak: true });
     const opening = applyConfigToState(config, createInitialState());
     assert.equal(opening.phase, 'regular');
 
-    const started = hold(config, createInitialState(), 0);
-    const mid = applyConfigToState({ ...config, decidingSuperTiebreak: false }, started);
-    assert.equal(mid.phase, 'regular');
-    assert.deepEqual(mid.games, [1, 0]);
-    assert.equal(mid.serveGameIndex, started.serveGameIndex);
-  });
-
-  it('keeps points already played in a super tie-break', () => {
-    const config = setup({ setsFormat: 3, decidingSuperTiebreak: true });
-    let state = bagel(config, createInitialState(), 0);
-    state = bagel(config, state, 1);
-    state = awardPoint(config, state, 0);
-    const next = applyConfigToState({ ...config, decidingSuperTiebreak: false }, state);
-    assert.equal(next.phase, 'superTiebreak');
-    assert.deepEqual(next.points, [1, 0]);
+    let tied = bagel(config, createInitialState(), 0);
+    tied = bagel(config, tied, 1);
+    assert.equal(tied.phase, 'regular');
+    const still = applyConfigToState(config, tied);
+    assert.equal(still.phase, 'regular');
+    assert.deepEqual(still.games, [0, 0]);
   });
 
   it('does not touch a live tie-break or a finished match', () => {
     const config = setup({ setsFormat: 3, decidingSuperTiebreak: false });
     const tiebreak = toSixAll(config, createInitialState());
-    const still = applyConfigToState({ ...config, decidingSuperTiebreak: true }, tiebreak);
+    const started = awardPoint(config, tiebreak, 0);
+    const still = applyConfigToState({ ...config, decidingSuperTiebreak: true }, started);
     assert.equal(still.phase, 'tiebreak');
     assert.deepEqual(still.games, [6, 6]);
+    assert.deepEqual(still.points, [1, 0]);
 
     const done = bagel(setup({ setsFormat: 1 }), createInitialState(), 1);
     assert.equal(done.status, 'finished');

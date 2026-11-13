@@ -81,7 +81,7 @@ export default function SummaryScreen() {
         <View style={styles.scoreRow}>
           {state.sets.map((set, index) => (
             <View key={`${formatSetScore(set)}-${index}`} style={styles.scorePill}>
-              <Text style={styles.scorePillLabel}>{set.superTiebreak ? 'Súper' : `Set ${index + 1}`}</Text>
+              <Text style={styles.scorePillLabel}>{set.superTiebreak && !set.tiebreak ? 'Súper' : `Set ${index + 1}`}</Text>
               <Text style={[styles.scorePillValue, { color: accent }]}>{formatSetScore(set)}</Text>
             </View>
           ))}
@@ -100,7 +100,7 @@ export default function SummaryScreen() {
         </View>
         {state.sets.map((set, index) => (
           <View key={`${set.games.join('-')}-${index}`} style={styles.tableRow}>
-            <Text style={styles.setName}>{set.superTiebreak ? 'Súper' : `Set ${index + 1}`}</Text>
+            <Text style={styles.setName}>{set.superTiebreak && !set.tiebreak ? 'Súper' : `Set ${index + 1}`}</Text>
             <Text style={[styles.cell, set.games[0] > set.games[1] && { color: accent }]}>{set.games[0]}</Text>
             <Text style={[styles.cell, set.games[1] > set.games[0] && { color: accent }]}>{set.games[1]}</Text>
           </View>
@@ -108,7 +108,11 @@ export default function SummaryScreen() {
         {state.sets.some((set) => set.tiebreak) ? (
           <Text style={styles.tiebreakNote}>
             {state.sets
-              .map((set, index) => (set.tiebreak ? `Set ${index + 1}: tie-break ${set.tiebreak[0]}-${set.tiebreak[1]}` : null))
+              .map((set, index) =>
+                set.tiebreak
+                  ? `Set ${index + 1}: ${set.superTiebreak ? 'súper tie-break' : 'tie-break'} ${set.tiebreak[0]}-${set.tiebreak[1]}`
+                  : null,
+              )
               .filter(Boolean)
               .join(' · ')}
           </Text>

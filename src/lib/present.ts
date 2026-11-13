@@ -28,7 +28,6 @@ export function teamLabel(config: MatchConfig, team: TeamIndex): string {
 }
 
 export function formatSetScore(set: CompletedSet): string {
-  if (set.superTiebreak) return `${set.games[0]}-${set.games[1]}`;
   if (set.tiebreak) {
     const loserPoints = set.games[0] > set.games[1] ? set.tiebreak[1] : set.tiebreak[0];
     return `${set.games[0]}-${set.games[1]}(${loserPoints})`;
@@ -50,7 +49,7 @@ export interface ScoreChip {
 export function scoreChips(state: MatchState): ScoreChip[] {
   const chips: ScoreChip[] = state.sets.map((set, index) => ({
     key: `set-${index}`,
-    label: set.superTiebreak ? 'SÚPER' : `SET ${index + 1}`,
+    label: set.superTiebreak && !set.tiebreak ? 'SÚPER' : `SET ${index + 1}`,
     text: formatSetScore(set),
     live: false,
   }));
@@ -58,18 +57,18 @@ export function scoreChips(state: MatchState): ScoreChip[] {
   if (state.status === 'finished') return chips;
 
   const setNumber = state.sets.length + 1;
-  if (state.phase === 'superTiebreak') {
-    chips.push({
-      key: 'live',
-      label: 'SÚPER',
-      text: `${state.points[0]}-${state.points[1]}`,
-      live: true,
-    });
-  } else if (state.phase === 'tiebreak') {
+  if ((state.phase === 'tiebreak' || state.phase === 'superTiebreak') && state.games[0] === 6 && state.games[1] === 6) {
     chips.push({
       key: 'live',
       label: `SET ${setNumber}`,
       text: `6-6 · ${state.points[0]}-${state.points[1]}`,
+      live: true,
+    });
+  } else if (state.phase === 'superTiebreak') {
+    chips.push({
+      key: 'live',
+      label: 'SÚPER',
+      text: `${state.points[0]}-${state.points[1]}`,
       live: true,
     });
   } else {

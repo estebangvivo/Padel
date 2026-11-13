@@ -22,6 +22,7 @@ export interface MatchConfig {
   teams: [Team, Team];
   setsFormat: SetsFormat;
   deuceRule: DeuceRule;
+  /** At 6-6, play the tie-break to 11 instead of 7. Both need a two-point margin. */
   decidingSuperTiebreak: boolean;
   initialServerTeam: TeamIndex;
   /** First and second server of each team. Singles is always [0, 0]. */
@@ -34,6 +35,7 @@ export interface SetupInput {
   names: [[string, string], [string, string]];
   setsFormat: SetsFormat;
   deuceRule: DeuceRule;
+  /** At 6-6, play the tie-break to 11 instead of 7. Both need a two-point margin. */
   decidingSuperTiebreak: boolean;
   initialServerTeam: TeamIndex;
   initialServerPlayer: PlayerIndex;
@@ -41,9 +43,11 @@ export interface SetupInput {
 }
 
 export interface CompletedSet {
-  /** Games, or super tie-break points when `superTiebreak` is true. */
+  /** Set games. A tie-break won at 6-6 is stored as 7-6. */
   games: [number, number];
+  /** Tie-break points. Null when the set was won in games. */
   tiebreak: [number, number] | null;
+  /** True when the 6-6 tie-break was played to 11. */
   superTiebreak: boolean;
 }
 
@@ -133,7 +137,7 @@ export function createMatchConfig(input: SetupInput): MatchConfig {
     teams,
     setsFormat: input.setsFormat,
     deuceRule: input.deuceRule,
-    decidingSuperTiebreak: input.setsFormat === 1 ? false : input.decidingSuperTiebreak,
+    decidingSuperTiebreak: input.decidingSuperTiebreak,
     initialServerTeam: input.initialServerTeam,
     serverOrder,
   };
@@ -216,6 +220,14 @@ export function awardPoint(config: MatchConfig, state: MatchState, team: TeamInd
 
   const next = cloneState(state);
   next.changeOfEnds = false;
+  if (
+    next.phase === 'superTiebreak' &&
+    (next.games[0] !== 6 || next.games[1] !== 6) &&
+    next.points[0] === 0 &&
+    next.points[1] === 0
+  ) {
+    next.phase = 'regular';
+  }
   next.points[team] += 1;
 
   if (next.phase === 'regular') {
@@ -231,7 +243,7 @@ export function awardPoint(config: MatchConfig, state: MatchState, team: TeamInd
     }
 
     if (next.games[0] === 6 && next.games[1] === 6) {
-      next.phase = 'tiebreak';
+      next.phase = config.decidingSuperTiebreak ? 'superTiebreak' : 'tiebreak';
       return next;
     }
 
@@ -246,16 +258,16 @@ export function awardPoint(config: MatchConfig, state: MatchState, team: TeamInd
     return next;
   }
 
-  if (next.phase === 'tiebreak') {
-    const tiebreak: [number, number] = [next.points[0], next.points[1]];
-    const games: [number, number] = team === 0 ? [7, 6] : [6, 7];
-    next.serveGameIndex += 1;
-    finishSet(next, config, games, team, tiebreak, 'tiebreak');
+  const tiebreak: [number, number] = [next.points[0], next.points[1]];
+  const insideSet = next.games[0] === 6 && next.games[1] === 6;
+  if (!insideSet) {
+    finishSet(next, config, tiebreak, team, null, 'super');
     return next;
   }
 
-  const score: [number, number] = [next.points[0], next.points[1]];
-  finishSet(next, config, score, team, score, 'super');
+  const games: [number, number] = team === 0 ? [7, 6] : [6, 7];
+  next.serveGameIndex += 1;
+  finishSet(next, config, games, team, tiebreak, next.phase === 'superTiebreak' ? 'super' : 'tiebreak');
   return next;
 }
 
@@ -275,13 +287,6 @@ function isTiebreakWon(points: [number, number], target: number): boolean {
   return best >= target && Math.abs(points[0] - points[1]) >= 2;
 }
 
-function shouldPlaySuperTiebreak(config: MatchConfig, won: [number, number]): boolean {
-  if (!config.decidingSuperTiebreak) return false;
-  const needed = setsNeededToWin(config.setsFormat);
-  if (needed <= 1) return false;
-  return won[0] === won[1] && won[0] === needed - 1;
-}
-
 function finishSet(
   state: MatchState,
   config: MatchConfig,
@@ -290,14 +295,11 @@ function finishSet(
   tiebreak: [number, number] | null,
   kind: 'games' | 'tiebreak' | 'super',
 ): void {
-  const games: [number, number] =
-    kind === 'super' && tiebreak ? [tiebreak[0], tiebreak[1]] : [setGames[0], setGames[1]];
-
   state.sets = [
     ...state.sets,
     {
-      games,
-      tiebreak: kind === 'tiebreak' ? tiebreak : null,
+      games: [setGames[0], setGames[1]],
+      tiebreak: kind === 'games' ? null : tiebreak,
       superTiebreak: kind === 'super',
     },
   ];
@@ -313,13 +315,7 @@ function finishSet(
     return;
   }
 
-  if (shouldPlaySuperTiebreak(config, won)) {
-    state.phase = 'superTiebreak';
-  }
-
-  if (kind !== 'super') {
-    state.changeOfEnds = (setGames[0] + setGames[1]) % 2 === 1;
-  }
+  state.changeOfEnds = (setGames[0] + setGames[1]) % 2 === 1;
 }
 
 export function configToSetupInput(config: MatchConfig): SetupInput {
@@ -342,8 +338,8 @@ export function configToSetupInput(config: MatchConfig): SetupInput {
 
 /**
  * Applies a new setup to a match that is already being played.
- * Completed points stay. The match ends only if the new set format is already won,
- * and a scoreless set becomes a super tie-break only when that rule now applies.
+ * Completed points stay. The match ends only if the new set format is already won.
+ * A 6-6 tie-break that has not started yet uses the selected tie-break length.
  */
 export function applyConfigToState(config: MatchConfig, state: MatchState): MatchState {
   if (state.status === 'finished') return state;
@@ -358,15 +354,16 @@ export function applyConfigToState(config: MatchConfig, state: MatchState): Matc
     return next;
   }
 
-  const setNotStarted =
-    next.phase !== 'tiebreak' &&
+  const breakerNotStarted = next.points[0] === 0 && next.points[1] === 0;
+  if (next.games[0] === 6 && next.games[1] === 6 && breakerNotStarted) {
+    next.phase = config.decidingSuperTiebreak ? 'superTiebreak' : 'tiebreak';
+  } else if (
+    next.phase === 'superTiebreak' &&
     next.games[0] === 0 &&
     next.games[1] === 0 &&
-    next.points[0] === 0 &&
-    next.points[1] === 0;
-
-  if (setNotStarted) {
-    next.phase = shouldPlaySuperTiebreak(config, won) ? 'superTiebreak' : 'regular';
+    breakerNotStarted
+  ) {
+    next.phase = 'regular';
   }
 
   return next;

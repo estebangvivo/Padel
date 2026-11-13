@@ -18,7 +18,7 @@ const NEW_MATCH: SetupInput = {
   ],
   setsFormat: 3,
   deuceRule: 'advantage',
-  decidingSuperTiebreak: true,
+  decidingSuperTiebreak: false,
   initialServerTeam: 0,
   initialServerPlayer: 0,
   opponentFirstServer: 0,

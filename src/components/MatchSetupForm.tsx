@@ -76,7 +76,6 @@ export function MatchSetupForm({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const accent = accentFor(sport);
-  const superEnabled = setsFormat !== 1;
   const draft = useMemo(
     () =>
       createMatchConfig({
@@ -88,12 +87,12 @@ export function MatchSetupForm({
         ],
         setsFormat,
         deuceRule,
-        decidingSuperTiebreak: superEnabled && superTiebreak,
+        decidingSuperTiebreak: superTiebreak,
         initialServerTeam: initialTeam,
         initialServerPlayer: format === 'singles' ? 0 : initialPlayer,
         opponentFirstServer: opponentPlayer,
       }),
-    [sport, format, names, setsFormat, deuceRule, superEnabled, superTiebreak, initialTeam, initialPlayer, opponentPlayer],
+    [sport, format, names, setsFormat, deuceRule, superTiebreak, initialTeam, initialPlayer, opponentPlayer],
   );
 
   const serverName = playerLabel(draft, initialTeam, format === 'singles' ? 0 : initialPlayer);
@@ -102,7 +101,7 @@ export function MatchSetupForm({
     format === 'doubles' ? 'Dobles' : 'Singles',
     setsFormat === 1 ? '1 set' : `${setsFormat} sets`,
     deuceRule === 'golden' ? 'Punto de oro' : 'Ventaja',
-    superEnabled && superTiebreak ? 'Súper tie-break' : 'Set decisivo largo',
+    superTiebreak ? 'Desempate a 11' : 'Desempate a 7',
     `Saca ${serverName}`,
   ].join(' · ');
 
@@ -220,28 +219,25 @@ export function MatchSetupForm({
         </Text>
 
         <Pressable
-          style={[styles.toggle, !superEnabled && styles.toggleDisabled]}
-          disabled={!superEnabled}
+          style={styles.toggle}
           onPress={() => setSuperTiebreak((value) => !value)}
           accessibilityRole="switch"
-          accessibilityState={{ checked: superEnabled && superTiebreak, disabled: !superEnabled }}
+          accessibilityState={{ checked: superTiebreak }}
         >
           <View style={styles.toggleCopy}>
-            <Text style={styles.toggleTitle}>Súper tie-break decisivo</Text>
+            <Text style={styles.toggleTitle}>Súper tie-break</Text>
             <Text style={styles.note}>
-              {superEnabled
-                ? 'Si empatan en sets, el set decisivo se reemplaza por un tie-break a 11 puntos, con diferencia de 2.'
-                : 'Disponible en partidos a 3 o 5 sets.'}
+              {superTiebreak
+                ? 'A 6-6 se desempata a 11 puntos, con diferencia de 2.'
+                : 'A 6-6 se desempata a 7 puntos, con diferencia de 2.'}
             </Text>
           </View>
-          <View style={[styles.switchTrack, superEnabled && superTiebreak && { backgroundColor: accent }]}>
-            <View style={[styles.switchThumb, superEnabled && superTiebreak && styles.switchThumbOn]} />
+          <View style={[styles.switchTrack, superTiebreak && { backgroundColor: accent }]}>
+            <View style={[styles.switchThumb, superTiebreak && styles.switchThumbOn]} />
           </View>
         </Pressable>
 
-        <Text style={styles.note}>
-          A 6-6 se juega tie-break a 7, con diferencia de 2. El primer saque es un punto y después rota cada dos.
-        </Text>
+        <Text style={styles.note}>En el desempate, el primer saque es un punto y después rota cada dos.</Text>
 
         <SectionLabel accent={accent}>Saque inicial</SectionLabel>
         <View style={styles.chips}>
@@ -455,7 +451,6 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: 'center',
   },
-  toggleDisabled: { opacity: 0.55 },
   toggleCopy: { flex: 1, gap: 4 },
   toggleTitle: { color: colors.text, fontSize: 16, fontWeight: '800' },
   switchTrack: {
