@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildSlots, createFixture, eachDate, isHardDay, type Pair, type TimeSlot } from './tournament';
+import { buildSlots, createFixture, eachDate, isHardDay, parseSetScores, scoreForWinner, setsForBracket, type Pair, type TimeSlot } from './tournament';
 
 function pair(id: string, preferred: string[] = []): Pair {
   return { id, playerA: id, playerB: '', phone: '', preferredSlotIds: preferred };
@@ -17,6 +17,35 @@ describe('tournament fixture', () => {
       slots.map((item) => item.start),
       ['09:00', '10:30'],
     );
+  });
+
+  it('splits a score written with spaces or commas into sets', () => {
+    assert.deepEqual(parseSetScores('6-3 6-2'), [
+      { a: '6', b: '3' },
+      { a: '6', b: '2' },
+    ]);
+    assert.deepEqual(parseSetScores('6-3, 6-2'), [
+      { a: '6', b: '3' },
+      { a: '6', b: '2' },
+    ]);
+    assert.deepEqual(parseSetScores('7-6(5), 6-4'), [
+      { a: '7', b: '6(5)' },
+      { a: '6', b: '4' },
+    ]);
+    assert.deepEqual(parseSetScores(''), []);
+    assert.equal(parseSetScores('retirado'), null);
+  });
+
+  it('puts the injury score on the winner and shows each pair its games', () => {
+    assert.equal(scoreForWinner('6-3, 6-3', false), '3-6, 3-6');
+    assert.deepEqual(setsForBracket('6-3 6-2', 'finished', true), [
+      { a: '6', b: '3' },
+      { a: '6', b: '2' },
+    ]);
+    assert.deepEqual(setsForBracket('6-3, 6-3', 'walkover', false), [
+      { a: '3', b: '6' },
+      { a: '3', b: '6' },
+    ]);
   });
 
   it('lists every day from the start through the end', () => {

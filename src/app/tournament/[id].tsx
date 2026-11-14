@@ -13,13 +13,23 @@ import {
   buildSlots,
   createFixture,
   createId,
+  formatSetScores,
   pairName,
+  parseSetScores,
+  scoreForWinner,
+  setsForBracket,
   whatsAppUrl,
   type FixtureMatch,
   type Pair,
+  type SetScore,
   type Tournament,
 } from '../../lib/tournament';
 import { colors } from '../../theme';
+
+const BLANK_SETS: SetScore[] = [
+  { a: '', b: '' },
+  { a: '', b: '' },
+];
 
 export default function TournamentScreen() {
   const insets = useSafeAreaInsets();
@@ -31,7 +41,8 @@ export default function TournamentScreen() {
   const [walkover, setWalkover] = useState(DEFAULT_WALKOVER);
   const [downloadUrl, setDownloadUrl] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [score, setScore] = useState('');
+  const [sets, setSets] = useState<SetScore[]>(BLANK_SETS);
+  const [legacyScore, setLegacyScore] = useState<string | null>(null);
   const [slotId, setSlotId] = useState<string | null>(null);
   const [court, setCourt] = useState<number | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -104,10 +115,24 @@ export default function TournamentScreen() {
   }
 
   function openMatch(match: FixtureMatch) {
+    const parsed = setsForBracket(match.score, match.status, match.winnerId === match.pairAId);
     setEditingId(match.id);
-    setScore(match.score);
+    setLegacyScore(parsed || !match.score.trim() ? null : match.score);
+    setSets(parsed && parsed.length > 0 ? parsed : BLANK_SETS.map((set) => ({ ...set })));
     setSlotId(match.slotId);
     setCourt(match.court);
+  }
+
+  function scoreText(): string {
+    const typed = formatSetScores(sets);
+    if (typed) return typed;
+    return legacyScore?.trim() ?? '';
+  }
+
+  function patchSet(index: number, side: 'a' | 'b', value: string) {
+    const clean = value.replace(/[^\d]/g, '').slice(0, 2);
+    setLegacyScore(null);
+    setSets((current) => current.map((set, item) => (item === index ? { ...set, [side]: clean } : set)));
   }
 
   function writeMatch(winnerId: string | null, nextScore: string, status: FixtureMatch['status'], nextSlot = slotId, nextCourt = court) {
@@ -205,22 +230,41 @@ export default function TournamentScreen() {
               {group.matches.map((match) => {
                 const slot = tournament.slots.find((item) => item.id === match.slotId);
                 const when = match.status === 'bye' ? t('tour.bye') : slot ? formatSlotWhen(slot, locale) : '—';
+                const played = match.status === 'finished' || match.status === 'walkover';
+                const sets = played ? setsForBracket(match.score, match.status, match.winnerId === match.pairAId) : null;
+                const rawScore = played && match.score.trim() && !sets ? match.score.trim() : '';
                 const active = match.id === editingId;
+                const scoreLabel = sets ? sets.map((set) => `${set.a}-${set.b}`).join(', ') : rawScore;
                 return (
                   <Pressable
                     key={match.id}
                     accessibilityRole="button"
-                    accessibilityLabel={`${labelPair(match.pairAId)} ${t('common.vs')} ${labelPair(match.pairBId)} ${when}`}
+                    accessibilityLabel={`${labelPair(match.pairAId)} ${t('common.vs')} ${labelPair(match.pairBId)} ${scoreLabel} ${when}`}
                     onPress={() => openMatch(match)}
                     style={[styles.bracketCard, active && styles.matchOn]}
                   >
-                    <Text style={[styles.bracketName, match.winnerId === match.pairAId && match.pairAId ? styles.bracketWin : null]} numberOfLines={1}>
-                      {labelPair(match.pairAId)}
-                    </Text>
+                    <View style={styles.bracketSide}>
+                      <Text style={[styles.bracketName, match.winnerId === match.pairAId && match.pairAId ? styles.bracketWin : null]} numberOfLines={1}>
+                        {labelPair(match.pairAId)}
+                      </Text>
+                      {sets?.map((set, index) => (
+                        <Text key={index} style={[styles.bracketSet, match.winnerId === match.pairAId ? styles.bracketWin : styles.bracketSetLoss]}>
+                          {set.a}
+                        </Text>
+                      ))}
+                    </View>
                     <View style={styles.bracketRule} />
-                    <Text style={[styles.bracketName, match.winnerId === match.pairBId && match.pairBId ? styles.bracketWin : null]} numberOfLines={1}>
-                      {labelPair(match.pairBId)}
-                    </Text>
+                    <View style={styles.bracketSide}>
+                      <Text style={[styles.bracketName, match.winnerId === match.pairBId && match.pairBId ? styles.bracketWin : null]} numberOfLines={1}>
+                        {labelPair(match.pairBId)}
+                      </Text>
+                      {sets?.map((set, index) => (
+                        <Text key={index} style={[styles.bracketSet, match.winnerId === match.pairBId ? styles.bracketWin : styles.bracketSetLoss]}>
+                          {set.b}
+                        </Text>
+                      ))}
+                    </View>
+                    {rawScore ? <Text style={styles.bracketScore} numberOfLines={1}>{rawScore}</Text> : null}
                     <Text style={styles.bracketWhen} numberOfLines={1}>{when}</Text>
                   </Pressable>
                 );
@@ -261,29 +305,71 @@ export default function TournamentScreen() {
           ) : null}
           {warning === 'pair' ? <Text style={styles.warn}>{t('tour.slotConflict')}</Text> : null}
           {warning === 'court' ? <Text style={styles.warn}>{t('tour.courtConflict')}</Text> : null}
-          <Field label={t('tour.score')} value={score} onChangeText={setScore} />
+          <Text style={styles.label}>{t('tour.score')}</Text>
+          <Text style={styles.note}>{labelPair(editing.pairAId)}  –  {labelPair(editing.pairBId)}</Text>
+          {sets.map((set, index) => (
+            <View key={index} style={styles.setRow}>
+              <Text style={styles.setLabel}>{t('tour.setN', { n: index + 1 })}</Text>
+              <TextInput
+                value={set.a}
+                onChangeText={(value) => patchSet(index, 'a', value)}
+                keyboardType="number-pad"
+                maxLength={2}
+                style={styles.setInput}
+                selectionColor={colors.padel}
+              />
+              <Text style={styles.setDash}>-</Text>
+              <TextInput
+                value={set.b}
+                onChangeText={(value) => patchSet(index, 'b', value)}
+                keyboardType="number-pad"
+                maxLength={2}
+                style={styles.setInput}
+                selectionColor={colors.padel}
+              />
+              {sets.length > 1 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('tour.remove')}
+                  onPress={() => setSets((current) => current.filter((_, item) => item !== index))}
+                >
+                  <Text style={styles.setRemove}>×</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ))}
+          {sets.length < 5 ? (
+            <Pressable accessibilityRole="button" onPress={() => setSets((current) => [...current, { a: '', b: '' }])}>
+              <Text style={styles.addSet}>{t('tour.addSet')}</Text>
+            </Pressable>
+          ) : null}
+          {legacyScore ? <Text style={styles.note}>{legacyScore}</Text> : null}
           {editing.pairAId && editing.pairBId ? (
             <>
               <Text style={styles.note}>{t('tour.injuredHint')}</Text>
               <Pressable accessibilityRole="button" style={styles.danger} onPress={() => {
-                const nextScore = walkover.trim() || DEFAULT_WALKOVER;
-                setScore(nextScore);
+                const nextScore = scoreForWinner(walkover.trim() || DEFAULT_WALKOVER, false);
+                const nextSets = parseSetScores(nextScore) ?? BLANK_SETS;
+                setLegacyScore(null);
+                setSets(nextSets);
                 writeMatch(editing.pairBId, nextScore, 'walkover');
               }}>
                 <Text style={styles.dangerText}>{t('tour.injuredA', { name: labelPair(editing.pairAId) })}</Text>
               </Pressable>
               <Pressable accessibilityRole="button" style={styles.danger} onPress={() => {
-                const nextScore = walkover.trim() || DEFAULT_WALKOVER;
-                setScore(nextScore);
+                const nextScore = scoreForWinner(walkover.trim() || DEFAULT_WALKOVER, true);
+                const nextSets = parseSetScores(nextScore) ?? BLANK_SETS;
+                setLegacyScore(null);
+                setSets(nextSets);
                 writeMatch(editing.pairAId, nextScore, 'walkover');
               }}>
                 <Text style={styles.dangerText}>{t('tour.injuredA', { name: labelPair(editing.pairBId) })}</Text>
               </Pressable>
               <View style={styles.row}>
-                <Pressable accessibilityRole="button" style={styles.option} onPress={() => writeMatch(editing.pairAId, score.trim(), 'finished')}>
+                <Pressable accessibilityRole="button" style={styles.option} onPress={() => writeMatch(editing.pairAId, scoreText(), 'finished')}>
                   <Text style={styles.optionText}>{t('tour.winner')}: {labelPair(editing.pairAId)}</Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" style={styles.option} onPress={() => writeMatch(editing.pairBId, score.trim(), 'finished')}>
+                <Pressable accessibilityRole="button" style={styles.option} onPress={() => writeMatch(editing.pairBId, scoreText(), 'finished')}>
                   <Text style={styles.optionText}>{t('tour.winner')}: {labelPair(editing.pairBId)}</Text>
                 </Pressable>
               </View>
@@ -291,11 +377,11 @@ export default function TournamentScreen() {
           ) : (
             <Text style={styles.note}>{t('tour.noOpponent')}</Text>
           )}
-          <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => writeMatch(editing.winnerId, score.trim(), editing.winnerId ? editing.status : 'scheduled')}>
+          <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => writeMatch(editing.winnerId, scoreText(), editing.winnerId ? editing.status : 'scheduled')}>
             <Text style={styles.secondaryText}>{t('common.save')}</Text>
           </Pressable>
           {editing.winnerId ? (
-            <Pressable accessibilityRole="button" onPress={() => { setScore(''); writeMatch(null, '', 'scheduled'); }}>
+            <Pressable accessibilityRole="button" onPress={() => { setSets(BLANK_SETS.map((set) => ({ ...set }))); setLegacyScore(null); writeMatch(null, '', 'scheduled'); }}>
               <Text style={styles.remove}>{t('tour.clearResult')}</Text>
             </Pressable>
           ) : null}
@@ -508,7 +594,7 @@ const styles = StyleSheet.create({
   secondaryText: { color: colors.text, fontSize: 15, fontWeight: '800' },
   bracketScroll: { marginHorizontal: -20 },
   bracketRow: { paddingHorizontal: 20, gap: 16, alignItems: 'flex-start' },
-  bracketCol: { width: 220, gap: 8 },
+  bracketCol: { width: 248, gap: 8 },
   bracketStack: { justifyContent: 'space-around', gap: 12 },
   bracketCard: {
     borderRadius: 16,
@@ -517,7 +603,28 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     overflow: 'hidden',
   },
-  bracketName: { color: colors.text, fontSize: 15, fontWeight: '800', paddingHorizontal: 12, paddingVertical: 10 },
+  bracketSide: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10 },
+  bracketName: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '800' },
+  bracketSet: { minWidth: 16, textAlign: 'center', fontSize: 14, fontWeight: '800' },
+  bracketSetLoss: { color: colors.muted },
+  bracketScore: { color: colors.padel, fontSize: 12, fontWeight: '800', paddingHorizontal: 12 },
+  setRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  setLabel: { width: 52, color: colors.dim, fontSize: 13, fontWeight: '700' },
+  setInput: {
+    width: 56,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surfaceRaised,
+    color: colors.text,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  setDash: { width: 10, color: colors.dim, fontSize: 18, fontWeight: '800', textAlign: 'center' },
+  addSet: { color: colors.padel, fontSize: 15, fontWeight: '800' },
+  setRemove: { width: 28, color: colors.danger, fontSize: 22, fontWeight: '700', textAlign: 'center' },
   bracketWin: { color: colors.padel },
   bracketRule: { height: 1, backgroundColor: colors.line },
   bracketWhen: { color: colors.muted, fontSize: 12, fontWeight: '700', paddingHorizontal: 12, paddingBottom: 10 },

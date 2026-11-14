@@ -317,6 +317,57 @@ export function createFixture(pairs: Pair[], slots: TimeSlot[], courts: number, 
   return matches;
 }
 
+export interface SetScore {
+  a: string;
+  b: string;
+}
+
+const SET_TOKEN = /(\d+)\s*[-–/]\s*(\d+)(?:\s*\(\s*(\d+)\s*\))?/g;
+
+export function parseSetScores(score: string): SetScore[] | null {
+  const trimmed = score.trim();
+  if (!trimmed) return [];
+  const sets: SetScore[] = [];
+  let cursor = 0;
+  for (const match of trimmed.matchAll(SET_TOKEN)) {
+    const index = match.index ?? 0;
+    if (!isSetSeparator(trimmed.slice(cursor, index))) return null;
+    const tiebreak = match[3] ? `(${match[3]})` : '';
+    sets.push({ a: match[1], b: `${match[2]}${tiebreak}` });
+    cursor = index + match[0].length;
+  }
+  if (sets.length === 0 || !isSetSeparator(trimmed.slice(cursor))) return null;
+  return sets;
+}
+
+function isSetSeparator(value: string): boolean {
+  return value.replace(/\by\b/gi, '').replace(/[\s,;]/g, '') === '';
+}
+
+export function formatSetScores(sets: SetScore[]): string {
+  return sets
+    .filter((set) => set.a.trim() || set.b.trim())
+    .map((set) => `${set.a.trim() || '0'}-${set.b.trim() || '0'}`)
+    .join(', ');
+}
+
+export function scoreForWinner(template: string, winnerIsA: boolean): string {
+  const parsed = parseSetScores(template);
+  const sets = parsed && parsed.length > 0 ? parsed : [{ a: '6', b: '3' }, { a: '6', b: '3' }];
+  const ordered = winnerIsA ? sets : sets.map((set) => ({ a: set.b, b: set.a }));
+  return formatSetScores(ordered);
+}
+
+export function setsForBracket(score: string, status: MatchStatus, winnerIsA: boolean): SetScore[] | null {
+  const sets = parseSetScores(score);
+  if (!sets || sets.length === 0) return null;
+  const firstSideSwept = sets.every((set) => Number.parseInt(set.a, 10) > Number.parseInt(set.b, 10));
+  if (status === 'walkover' && !winnerIsA && firstSideSwept) {
+    return sets.map((set) => ({ a: set.b, b: set.a }));
+  }
+  return sets;
+}
+
 export function whatsAppUrl(phone: string, message: string): string | null {
   const digits = phone.replace(/\D/g, '');
   if (digits.length < 8) return null;
