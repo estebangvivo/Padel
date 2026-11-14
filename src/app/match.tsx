@@ -8,6 +8,8 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { CourtWash } from '../components/CourtWash';
 import { Icon } from '../components/Icon';
 import { useMatch } from '../context/MatchContext';
+import { useT } from '../i18n/I18nContext';
+import { usePresentCopy } from '../i18n/presentCopy';
 import { useElapsedClock } from '../hooks/useElapsedClock';
 import { hapticPoint, hapticSuccess, hapticUndo } from '../lib/haptics';
 import {
@@ -29,6 +31,8 @@ export default function MatchScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
+  const { t } = useT();
+  const copy = usePresentCopy();
   const { ready, match, addPoint, undo, resetMatch, toggleTimer, canUndo } = useMatch();
   const elapsed = useElapsedClock(match?.timer ?? null);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -57,13 +61,13 @@ export default function MatchScreen() {
   const alerts = getAlerts(config, state);
   const hero = heroAlert(alerts);
   const heroTone = hero && hero.type !== 'tiebreak' && hero.type !== 'superTiebreak' ? alertColors(hero.type) : null;
-  const mode = modeLabel(alerts);
+  const mode = modeLabel(alerts, copy);
   const extras = secondaryAlerts(alerts, hero);
   const server = getCurrentServer(config, state);
   const won = setsWon(state);
-  const chips = scoreChips(state);
+  const chips = scoreChips(state, copy);
   const scoreFont = landscape ? 72 : Math.round(Math.min(112, Math.max(76, width * 0.23)));
-  const serverName = playerLabel(config, server.team, server.playerIndex);
+  const serverName = playerLabel(config, server.team, server.playerIndex, copy);
 
   function score(team: TeamIndex) {
     const result = addPoint(team);
@@ -88,10 +92,10 @@ export default function MatchScreen() {
             onPress={onUndo}
             disabled={!canUndo}
             accessibilityRole="button"
-            accessibilityLabel="Deshacer el último punto"
+            accessibilityLabel={t('match.undoA11y')}
           >
             <Icon name="arrow-undo" color={canUndo ? colors.text : colors.dim} size={16} />
-            <Text style={[styles.controlText, !canUndo && styles.controlTextDisabled]}>Deshacer</Text>
+            <Text style={[styles.controlText, !canUndo && styles.controlTextDisabled]}>{t('match.undo')}</Text>
           </Pressable>
 
           <Pressable
@@ -99,7 +103,7 @@ export default function MatchScreen() {
             style={[styles.clock, match.timer.running && { borderColor: `${accent}88` }]}
             onPress={toggleTimer}
             accessibilityRole="button"
-            accessibilityLabel={match.timer.running ? 'Pausar cronómetro' : 'Reanudar cronómetro'}
+            accessibilityLabel={match.timer.running ? t('match.pause') : t('match.resume')}
           >
             <View style={[styles.clockDot, { backgroundColor: match.timer.running ? accent : colors.warning }]} />
             <Text style={[styles.clockText, !match.timer.running && styles.clockPaused]}>{formatClock(elapsed)}</Text>
@@ -111,10 +115,10 @@ export default function MatchScreen() {
             style={styles.control}
             onPress={() => setConfirmReset(true)}
             accessibilityRole="button"
-            accessibilityLabel="Reiniciar partido"
+            accessibilityLabel={t('match.resetA11y')}
           >
             <Icon name="refresh" color={colors.muted} size={16} />
-            <Text style={styles.controlMuted}>Reiniciar</Text>
+            <Text style={styles.controlMuted}>{t('match.reset')}</Text>
           </Pressable>
         </View>
 
@@ -122,7 +126,7 @@ export default function MatchScreen() {
           <View style={styles.servePill}>
             <View style={styles.serveBall} />
             <Text style={styles.serveLine} numberOfLines={1}>
-              Saca <Text style={{ color: accent }}>{serverName}</Text>
+              {t('match.serves')} <Text style={{ color: accent }}>{serverName}</Text>
             </Text>
           </View>
           <View style={styles.metaActions}>
@@ -132,19 +136,19 @@ export default function MatchScreen() {
               hitSlop={8}
               style={styles.metaButton}
               accessibilityRole="button"
-              accessibilityLabel="Editar datos del partido"
+              accessibilityLabel={t('match.editA11y')}
             >
               <Icon name="create-outline" color={colors.text} size={14} />
-              <Text style={styles.edit}>Editar</Text>
+              <Text style={styles.edit}>{t('match.edit')}</Text>
             </Pressable>
             <Pressable
               onPress={() => setConfirmLeave(true)}
               hitSlop={8}
               style={styles.metaButton}
               accessibilityRole="button"
-              accessibilityLabel="Salir del marcador"
+              accessibilityLabel={t('match.leaveA11y')}
             >
-              <Text style={styles.exit}>Salir</Text>
+              <Text style={styles.exit}>{t('match.leave')}</Text>
             </Pressable>
           </View>
         </View>
@@ -167,7 +171,7 @@ export default function MatchScreen() {
         {hero && heroTone ? (
           <View style={[styles.hero, { backgroundColor: heroTone.background }]}>
             <Text style={[styles.heroText, { color: heroTone.text }]} numberOfLines={1} adjustsFontSizeToFit>
-              {alertHeadline(config, hero)}
+              {alertHeadline(config, hero, copy)}
             </Text>
           </View>
         ) : null}
@@ -176,7 +180,7 @@ export default function MatchScreen() {
           <View style={styles.extras}>
             {extras.map((alert) => (
               <View key={`${alert.type}-${alert.team ?? 'x'}`} style={styles.extra}>
-                <Text style={styles.extraText}>{alertCopy(alert.type)}</Text>
+                <Text style={styles.extraText}>{alertCopy(alert.type, copy)}</Text>
               </View>
             ))}
           </View>
@@ -185,7 +189,7 @@ export default function MatchScreen() {
         {state.changeOfEnds ? (
           <View style={[styles.change, { backgroundColor: accent }]}>
             <Icon name="swap-horizontal" color={colors.ink} size={18} />
-            <Text style={styles.changeText}>CAMBIO DE LADO</Text>
+            <Text style={styles.changeText}>{t('match.changeEnds')}</Text>
           </View>
         ) : null}
       </View>
@@ -204,7 +208,7 @@ export default function MatchScreen() {
               testID={`score-team-${team}`}
               onPress={() => score(team)}
               accessibilityRole="button"
-              accessibilityLabel={`Sumar punto a ${teamLabel(config, team)}`}
+              accessibilityLabel={t('match.addPoint', { name: teamLabel(config, team, copy) })}
               android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
               style={({ pressed }) => [
                 styles.half,
@@ -229,7 +233,7 @@ export default function MatchScreen() {
                           numberOfLines={1}
                           adjustsFontSizeToFit
                         >
-                          {playerLabel(config, team, player)}
+                          {playerLabel(config, team, player, copy)}
                         </Text>
                       </View>
                     );
@@ -237,7 +241,7 @@ export default function MatchScreen() {
                 </View>
                 <View style={[styles.setPill, serving && { borderColor: `${accent}88` }]}>
                   <Text style={[styles.setValue, serving && { color: accent }]}>{won[team]}</Text>
-                  <Text style={styles.setLabel}>SETS</Text>
+                  <Text style={styles.setLabel}>{t('match.sets')}</Text>
                 </View>
               </View>
 
@@ -246,7 +250,7 @@ export default function MatchScreen() {
               </Text>
 
               <View style={styles.cardFoot}>
-                <Text style={styles.gamesCaption}>GAMES</Text>
+                <Text style={styles.gamesCaption}>{t('match.games')}</Text>
                 <Text style={styles.games}>{state.games[team]}</Text>
                 <View style={[styles.plusPill, { borderColor: `${accent}55`, backgroundColor: `${accent}16` }]}>
                   <Text style={[styles.plus, { color: accent }]}>+1</Text>
@@ -259,9 +263,9 @@ export default function MatchScreen() {
 
       <ConfirmModal
         visible={confirmReset}
-        title="¿Reiniciar el partido?"
-        message="El marcador vuelve a cero. Se mantienen los jugadores, el formato y las reglas."
-        confirmLabel="Reiniciar"
+        title={t('match.resetTitle')}
+        message={t('match.resetMessage')}
+        confirmLabel={t('match.reset')}
         destructive
         onCancel={() => setConfirmReset(false)}
         onConfirm={() => {
@@ -271,9 +275,9 @@ export default function MatchScreen() {
       />
       <ConfirmModal
         visible={confirmLeave}
-        title="¿Salir del marcador?"
-        message="El partido queda guardado en este teléfono. Podés continuarlo cuando vuelvas."
-        confirmLabel="Salir"
+        title={t('match.leaveTitle')}
+        message={t('match.leaveMessage')}
+        confirmLabel={t('match.leave')}
         onCancel={() => setConfirmLeave(false)}
         onConfirm={() => {
           setConfirmLeave(false);

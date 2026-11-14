@@ -4,11 +4,13 @@ import { useEffect } from 'react';
 import { BackHandler, View } from 'react-native';
 import { MatchSetupForm } from '../components/MatchSetupForm';
 import { useMatch } from '../context/MatchContext';
+import { useT } from '../i18n/I18nContext';
 import { configToSetupInput } from '../lib/scoringEngine';
 import { colors } from '../theme';
 
 export default function EditMatchScreen() {
   useKeepAwake('match-edit', { suppressDeactivateWarnings: true });
+  const { t } = useT();
   const { ready, match, updateConfig } = useMatch();
   const live = match?.state.status === 'live';
 
@@ -30,14 +32,10 @@ export default function EditMatchScreen() {
 
   return (
     <MatchSetupForm
-      kicker={live ? 'PARTIDO EN CURSO' : 'RESULTADO'}
-      title="Editar datos"
-      subtitle={
-        live
-          ? 'Podés corregir nombres, saque y reglas. El marcador y el tiempo no se reinician.'
-          : 'Podés corregir nombres y el texto del resultado. Los games ya jugados siguen igual.'
-      }
-      submitLabel="Guardar cambios"
+      kicker={live ? t('edit.kickerLive') : t('edit.kickerResult')}
+      title={t('edit.title')}
+      subtitle={live ? t('edit.subtitleLive') : t('edit.subtitleDone')}
+      submitLabel={t('edit.save')}
       submitTestID="save-match"
       initial={configToSetupInput(match.config)}
       onCancel={() => {

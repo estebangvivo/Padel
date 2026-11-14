@@ -1,4 +1,5 @@
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useT } from '../i18n/I18nContext';
 import { colors } from '../theme';
 
 interface ConfirmModalProps {
@@ -20,6 +21,7 @@ export function ConfirmModal({
   onCancel,
   destructive = false,
 }: ConfirmModalProps) {
+  const { t } = useT();
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onCancel}>
       <View style={styles.backdrop}>
@@ -28,7 +30,7 @@ export function ConfirmModal({
           <Text style={styles.message}>{message}</Text>
           <View style={styles.actions}>
             <Pressable style={styles.secondary} onPress={onCancel} accessibilityRole="button">
-              <Text style={styles.secondaryText}>Cancelar</Text>
+              <Text style={styles.secondaryText}>{t('common.cancel')}</Text>
             </Pressable>
             <Pressable
               style={[styles.primary, destructive && styles.danger]}

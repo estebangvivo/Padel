@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { CourtWash } from './CourtWash';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useT } from '../i18n/I18nContext';
+import { usePresentCopy } from '../i18n/presentCopy';
 import { playerLabel, teamLabel } from '../lib/present';
 import {
   createMatchConfig,
@@ -58,6 +60,8 @@ export function MatchSetupForm({
   onSubmit,
   onCancel,
 }: MatchSetupFormProps) {
+  const { t } = useT();
+  const copy = usePresentCopy();
   const insets = useSafeAreaInsets();
   const [sport, setSport] = useState<Sport>(initial.sport);
   const [format, setFormat] = useState<MatchFormat>(initial.format);
@@ -95,14 +99,14 @@ export function MatchSetupForm({
     [sport, format, names, setsFormat, deuceRule, superTiebreak, initialTeam, initialPlayer, opponentPlayer],
   );
 
-  const serverName = playerLabel(draft, initialTeam, format === 'singles' ? 0 : initialPlayer);
+  const serverName = playerLabel(draft, initialTeam, format === 'singles' ? 0 : initialPlayer, copy);
   const summary = [
-    sport === 'padel' ? 'Pádel' : 'Tenis',
-    format === 'doubles' ? 'Dobles' : 'Singles',
-    setsFormat === 1 ? '1 set' : `${setsFormat} sets`,
-    deuceRule === 'golden' ? 'Punto de oro' : 'Ventaja',
-    superTiebreak ? 'Desempate a 11' : 'Desempate a 7',
-    `Saca ${serverName}`,
+    sport === 'padel' ? t('sport.padel') : t('sport.tennis'),
+    format === 'doubles' ? t('sport.doubles') : t('sport.singles'),
+    setsFormat === 1 ? t('form.set1') : t('form.setsN', { n: setsFormat }),
+    deuceRule === 'golden' ? t('form.golden') : t('form.advantage'),
+    superTiebreak ? t('form.tiebreak11') : t('form.tiebreak7'),
+    t('form.serves', { name: serverName }),
   ].join(' · ');
 
   const otherTeam = (1 - initialTeam) as TeamIndex;
@@ -145,21 +149,21 @@ export function MatchSetupForm({
             <View style={[styles.titleRule, { backgroundColor: accent }]} />
           </View>
           {onCancel ? (
-            <Pressable onPress={onCancel} hitSlop={8} accessibilityRole="button" accessibilityLabel="Cancelar edición">
-              <Text style={styles.cancel}>Cancelar</Text>
+            <Pressable onPress={onCancel} hitSlop={8} accessibilityRole="button" accessibilityLabel={t('form.cancelA11y')}>
+              <Text style={styles.cancel}>{t('common.cancel')}</Text>
             </Pressable>
           ) : null}
         </View>
         <Text style={styles.subtitle}>{subtitle}</Text>
         {header}
 
-        <SectionLabel accent={accent}>Deporte</SectionLabel>
+        <SectionLabel accent={accent}>{t('form.sport')}</SectionLabel>
         <View style={styles.sportRow}>
-          <SportCard label="Pádel" selected={sport === 'padel'} accent={colors.padel} onPress={() => setSport('padel')} />
-          <SportCard label="Tenis" selected={sport === 'tennis'} accent={colors.tennis} onPress={() => setSport('tennis')} />
+          <SportCard label={t('sport.padel')} selected={sport === 'padel'} accent={colors.padel} onPress={() => setSport('padel')} />
+          <SportCard label={t('sport.tennis')} selected={sport === 'tennis'} accent={colors.tennis} onPress={() => setSport('tennis')} />
         </View>
 
-        <SectionLabel accent={accent}>Modalidad</SectionLabel>
+        <SectionLabel accent={accent}>{t('form.modality')}</SectionLabel>
         <SegmentedControl
           accent={accent}
           value={format}
@@ -168,55 +172,51 @@ export function MatchSetupForm({
             if (value === 'singles') setInitialPlayer(0);
           }}
           options={[
-            { value: 'singles', label: 'Singles' },
-            { value: 'doubles', label: 'Dobles' },
+            { value: 'singles', label: t('sport.singles') },
+            { value: 'doubles', label: t('sport.doubles') },
           ]}
         />
 
-        <SectionLabel accent={accent}>{format === 'doubles' ? 'Parejas' : 'Jugadores'}</SectionLabel>
+        <SectionLabel accent={accent}>{format === 'doubles' ? t('form.pairs') : t('form.players')}</SectionLabel>
         {format === 'singles' ? (
           <View style={styles.stack}>
-            <Field label="Jugador 1" value={names[0]} placeholder="Jugador 1" accent={accent} onChangeText={(value) => updateName(0, value)} />
-            <Field label="Jugador 2" value={names[2]} placeholder="Jugador 2" accent={accent} onChangeText={(value) => updateName(2, value)} />
+            <Field label={t('label.playerN', { n: 1 })} value={names[0]} placeholder={t('label.playerN', { n: 1 })} accent={accent} onChangeText={(value) => updateName(0, value)} />
+            <Field label={t('label.playerN', { n: 2 })} value={names[2]} placeholder={t('label.playerN', { n: 2 })} accent={accent} onChangeText={(value) => updateName(2, value)} />
           </View>
         ) : (
           <View style={styles.stack}>
-            <Text style={styles.pairLabel}>Pareja 1</Text>
-            <Field label="Jugador A" value={names[0]} placeholder="Jugador A" accent={accent} onChangeText={(value) => updateName(0, value)} />
-            <Field label="Jugador B" value={names[1]} placeholder="Jugador B" accent={accent} onChangeText={(value) => updateName(1, value)} />
-            <Text style={[styles.pairLabel, styles.pairGap]}>Pareja 2</Text>
-            <Field label="Jugador C" value={names[2]} placeholder="Jugador C" accent={accent} onChangeText={(value) => updateName(2, value)} />
-            <Field label="Jugador D" value={names[3]} placeholder="Jugador D" accent={accent} onChangeText={(value) => updateName(3, value)} />
+            <Text style={styles.pairLabel}>{t('label.pairN', { n: 1 })}</Text>
+            <Field label={t('label.playerLetter', { letter: 'A' })} value={names[0]} placeholder={t('label.playerLetter', { letter: 'A' })} accent={accent} onChangeText={(value) => updateName(0, value)} />
+            <Field label={t('label.playerLetter', { letter: 'B' })} value={names[1]} placeholder={t('label.playerLetter', { letter: 'B' })} accent={accent} onChangeText={(value) => updateName(1, value)} />
+            <Text style={[styles.pairLabel, styles.pairGap]}>{t('label.pairN', { n: 2 })}</Text>
+            <Field label={t('label.playerLetter', { letter: 'C' })} value={names[2]} placeholder={t('label.playerLetter', { letter: 'C' })} accent={accent} onChangeText={(value) => updateName(2, value)} />
+            <Field label={t('label.playerLetter', { letter: 'D' })} value={names[3]} placeholder={t('label.playerLetter', { letter: 'D' })} accent={accent} onChangeText={(value) => updateName(3, value)} />
           </View>
         )}
 
-        <SectionLabel accent={accent}>Sets</SectionLabel>
+        <SectionLabel accent={accent}>{t('form.sets')}</SectionLabel>
         <SegmentedControl
           accent={accent}
           value={setsFormat}
           onChange={setSetsFormat}
           options={[
-            { value: 1, label: '1 set' },
-            { value: 3, label: '3 sets' },
-            { value: 5, label: '5 sets' },
+            { value: 1, label: t('form.set1') },
+            { value: 3, label: t('form.setsN', { n: 3 }) },
+            { value: 5, label: t('form.setsN', { n: 5 }) },
           ]}
         />
 
-        <SectionLabel accent={accent}>En 40-40</SectionLabel>
+        <SectionLabel accent={accent}>{t('form.deuce')}</SectionLabel>
         <SegmentedControl
           accent={accent}
           value={deuceRule}
           onChange={setDeuceRule}
           options={[
-            { value: 'advantage', label: 'Ventaja' },
-            { value: 'golden', label: 'Punto de oro' },
+            { value: 'advantage', label: t('form.advantage') },
+            { value: 'golden', label: t('form.golden') },
           ]}
         />
-        <Text style={styles.note}>
-          {deuceRule === 'advantage'
-            ? '40 iguales, ventaja y game. Si se pierde la ventaja, se vuelve a 40 iguales.'
-            : 'En 40 iguales se marca PUNTO DE ORO y el siguiente punto gana el game.'}
-        </Text>
+        <Text style={styles.note}>{deuceRule === 'advantage' ? t('form.advantageNote') : t('form.goldenNote')}</Text>
 
         <Pressable
           style={styles.toggle}
@@ -225,21 +225,17 @@ export function MatchSetupForm({
           accessibilityState={{ checked: superTiebreak }}
         >
           <View style={styles.toggleCopy}>
-            <Text style={styles.toggleTitle}>Súper tie-break</Text>
-            <Text style={styles.note}>
-              {superTiebreak
-                ? 'A 6-6 se desempata a 11 puntos, con diferencia de 2.'
-                : 'A 6-6 se desempata a 7 puntos, con diferencia de 2.'}
-            </Text>
+            <Text style={styles.toggleTitle}>{t('form.super')}</Text>
+            <Text style={styles.note}>{superTiebreak ? t('form.superOn') : t('form.superOff')}</Text>
           </View>
           <View style={[styles.switchTrack, superTiebreak && { backgroundColor: accent }]}>
             <View style={[styles.switchThumb, superTiebreak && styles.switchThumbOn]} />
           </View>
         </Pressable>
 
-        <Text style={styles.note}>En el desempate, el primer saque es un punto y después rota cada dos.</Text>
+        <Text style={styles.note}>{t('form.serveNote')}</Text>
 
-        <SectionLabel accent={accent}>Saque inicial</SectionLabel>
+        <SectionLabel accent={accent}>{t('form.firstServe')}</SectionLabel>
         <View style={styles.chips}>
           {firstServers.map((choice) => {
             const selected = choice.team === initialTeam && (format === 'singles' || choice.player === initialPlayer);
@@ -251,11 +247,11 @@ export function MatchSetupForm({
                   setInitialPlayer(choice.player);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel={`Saca primero ${playerLabel(draft, choice.team, choice.player)}`}
+                accessibilityLabel={t('form.servesFirst', { name: playerLabel(draft, choice.team, choice.player, copy) })}
                 style={[styles.chip, selected && { borderColor: accent, backgroundColor: `${accent}22` }]}
               >
                 <Text style={[styles.chipText, selected && { color: colors.text }]}>
-                  {playerLabel(draft, choice.team, choice.player)}
+                  {playerLabel(draft, choice.team, choice.player, copy)}
                 </Text>
               </Pressable>
             );
@@ -264,7 +260,7 @@ export function MatchSetupForm({
 
         {format === 'doubles' ? (
           <>
-            <Text style={styles.pairLabel}>Primer saque de {teamLabel(draft, otherTeam)}</Text>
+            <Text style={styles.pairLabel}>{t('form.firstOf', { name: teamLabel(draft, otherTeam, copy) })}</Text>
             <View style={styles.chips}>
               {([0, 1] as const).map((player) => {
                 const selected = opponentPlayer === player;
@@ -273,11 +269,11 @@ export function MatchSetupForm({
                     key={player}
                     onPress={() => setOpponentPlayer(player)}
                     accessibilityRole="button"
-                    accessibilityLabel={`Primer saque rival ${playerLabel(draft, otherTeam, player)}`}
+                    accessibilityLabel={t('form.opponentServe', { name: playerLabel(draft, otherTeam, player, copy) })}
                     style={[styles.chip, selected && { borderColor: accent, backgroundColor: `${accent}22` }]}
                   >
                     <Text style={[styles.chipText, selected && { color: colors.text }]}>
-                      {playerLabel(draft, otherTeam, player)}
+                      {playerLabel(draft, otherTeam, player, copy)}
                     </Text>
                   </Pressable>
                 );
@@ -310,7 +306,7 @@ export function MatchSetupForm({
           visible={confirmOpen}
           title={confirmSubmit.title}
           message={confirmSubmit.message}
-          confirmLabel="Empezar"
+          confirmLabel={t('form.confirmStart')}
           destructive
           onCancel={() => setConfirmOpen(false)}
           onConfirm={() => {

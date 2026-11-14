@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CourtWash } from '../components/CourtWash';
 import { Icon } from '../components/Icon';
 import { useMatch } from '../context/MatchContext';
+import { useT } from '../i18n/I18nContext';
+import { usePresentCopy } from '../i18n/presentCopy';
 import { useElapsedClock } from '../hooks/useElapsedClock';
 import { hapticUndo } from '../lib/haptics';
 import { buildShareMessage, formatSetScore, teamLabel } from '../lib/present';
@@ -16,6 +18,8 @@ import { accentFor, colors } from '../theme';
 
 export default function SummaryScreen() {
   const insets = useSafeAreaInsets();
+  const { t } = useT();
+  const copy = usePresentCopy();
   const { ready, match, clearMatch, undo, canUndo } = useMatch();
   const elapsed = useElapsedClock(match?.timer ?? null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -45,20 +49,20 @@ export default function SummaryScreen() {
 
   const { config, state } = match;
   const accent = accentFor(config.sport);
-  const message = buildShareMessage(config, state, elapsed);
-  const sport = config.sport === 'padel' ? 'Pádel' : 'Tenis';
-  const format = config.format === 'doubles' ? 'Dobles' : 'Singles';
+  const message = buildShareMessage(config, state, elapsed, copy);
+  const sport = config.sport === 'padel' ? t('sport.padel') : t('sport.tennis');
+  const format = config.format === 'doubles' ? t('sport.doubles') : t('sport.singles');
 
   async function onShare() {
     const result = await shareResult(message);
-    if (result === 'copied-only') setNotice('No se abrió el menú. El resultado quedó copiado.');
-    else if (result === 'shared') setNotice('Listo para enviar.');
+    if (result === 'copied-only') setNotice(t('share.fallback'));
+    else if (result === 'shared') setNotice(t('share.shared'));
     else setNotice(null);
   }
 
   async function onCopy() {
     const ok = await copyResult(message);
-    setNotice(ok ? 'Copiado. Pegalo en WhatsApp.' : 'No se pudo copiar el resultado.');
+    setNotice(ok ? t('share.copied') : t('share.copyFailed'));
   }
 
   const glow = [`${accent}44`, 'rgba(17,24,32,0)'] as [ColorValue, ColorValue];
@@ -74,14 +78,16 @@ export default function SummaryScreen() {
         <Text style={styles.kicker}>
           {sport} · {format}
         </Text>
-        <Text style={[styles.eyebrow, { color: accent }]}>GANADOR</Text>
+        <Text style={[styles.eyebrow, { color: accent }]}>{t('summary.winner')}</Text>
         <Text style={styles.winner} adjustsFontSizeToFit numberOfLines={3}>
-          {teamLabel(config, winner)}
+          {teamLabel(config, winner, copy)}
         </Text>
         <View style={styles.scoreRow}>
           {state.sets.map((set, index) => (
             <View key={`${formatSetScore(set)}-${index}`} style={styles.scorePill}>
-              <Text style={styles.scorePillLabel}>{set.superTiebreak && !set.tiebreak ? 'Súper' : `Set ${index + 1}`}</Text>
+              <Text style={styles.scorePillLabel}>
+                {set.superTiebreak && !set.tiebreak ? t('label.super') : t('label.set', { n: index + 1 })}
+              </Text>
               <Text style={[styles.scorePillValue, { color: accent }]}>{formatSetScore(set)}</Text>
             </View>
           ))}
@@ -94,13 +100,13 @@ export default function SummaryScreen() {
 
       <View style={styles.table}>
         <View style={styles.tableHead}>
-          <Text style={styles.headLabel}>Set</Text>
-          <NameHeader team={0} winner={winner} label={teamLabel(config, 0)} accent={accent} />
-          <NameHeader team={1} winner={winner} label={teamLabel(config, 1)} accent={accent} />
+          <Text style={styles.headLabel}>{t('form.sets')}</Text>
+          <NameHeader team={0} winner={winner} label={teamLabel(config, 0, copy)} accent={accent} />
+          <NameHeader team={1} winner={winner} label={teamLabel(config, 1, copy)} accent={accent} />
         </View>
         {state.sets.map((set, index) => (
           <View key={`${set.games.join('-')}-${index}`} style={styles.tableRow}>
-            <Text style={styles.setName}>{set.superTiebreak && !set.tiebreak ? 'Súper' : `Set ${index + 1}`}</Text>
+            <Text style={styles.setName}>{set.superTiebreak && !set.tiebreak ? t('label.super') : t('label.set', { n: index + 1 })}</Text>
             <Text style={[styles.cell, set.games[0] > set.games[1] && { color: accent }]}>{set.games[0]}</Text>
             <Text style={[styles.cell, set.games[1] > set.games[0] && { color: accent }]}>{set.games[1]}</Text>
           </View>
@@ -110,7 +116,11 @@ export default function SummaryScreen() {
             {state.sets
               .map((set, index) =>
                 set.tiebreak
-                  ? `Set ${index + 1}: ${set.superTiebreak ? 'súper tie-break' : 'tie-break'} ${set.tiebreak[0]}-${set.tiebreak[1]}`
+                  ? t('summary.setLine', {
+                      n: index + 1,
+                      kind: set.superTiebreak ? t('label.superTiebreak') : t('label.tiebreak'),
+                      points: `${set.tiebreak[0]}-${set.tiebreak[1]}`,
+                    })
                   : null,
               )
               .filter(Boolean)
@@ -122,22 +132,22 @@ export default function SummaryScreen() {
       <Pressable
         testID="share-result"
         accessibilityRole="button"
-        accessibilityLabel="Compartir resultado"
+        accessibilityLabel={t('summary.share')}
         style={[styles.primary, { backgroundColor: accent }]}
         onPress={() => void onShare()}
       >
         <Icon name="share-social" color={colors.ink} size={18} />
-        <Text style={styles.primaryText}>Compartir resultado</Text>
+        <Text style={styles.primaryText}>{t('summary.share')}</Text>
       </Pressable>
       <Pressable
         testID="copy-result"
         accessibilityRole="button"
-        accessibilityLabel="Copiar resultado"
+        accessibilityLabel={t('summary.copy')}
         style={styles.secondary}
         onPress={() => void onCopy()}
       >
         <Icon name="copy-outline" color={colors.text} size={18} />
-        <Text style={styles.secondaryText}>Copiar</Text>
+        <Text style={styles.secondaryText}>{t('summary.copy')}</Text>
       </Pressable>
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
@@ -146,30 +156,30 @@ export default function SummaryScreen() {
       <Pressable
         testID="edit-result"
         accessibilityRole="button"
-        accessibilityLabel="Editar datos del partido"
+        accessibilityLabel={t('summary.edit')}
         style={styles.secondary}
         onPress={() => router.push('/edit')}
       >
         <Icon name="create-outline" color={colors.text} size={18} />
-        <Text style={styles.secondaryText}>Editar datos</Text>
+        <Text style={styles.secondaryText}>{t('summary.edit')}</Text>
       </Pressable>
 
       <Pressable
         testID="new-match"
         accessibilityRole="button"
-        accessibilityLabel="Nuevo partido"
+        accessibilityLabel={t('summary.newMatch')}
         style={styles.secondary}
         onPress={() => {
           clearMatch();
           router.replace('/');
         }}
       >
-        <Text style={styles.secondaryText}>Nuevo partido</Text>
+        <Text style={styles.secondaryText}>{t('summary.newMatch')}</Text>
       </Pressable>
       {canUndo ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Deshacer último punto"
+          accessibilityLabel={t('summary.undoLast')}
           style={styles.ghost}
           onPress={() => {
             hapticUndo();
@@ -177,7 +187,7 @@ export default function SummaryScreen() {
             router.replace('/match');
           }}
         >
-          <Text style={styles.ghostText}>Deshacer último punto</Text>
+          <Text style={styles.ghostText}>{t('summary.undoLast')}</Text>
         </Pressable>
       ) : null}
     </ScrollView>
