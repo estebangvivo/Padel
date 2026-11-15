@@ -1,15 +1,35 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState, type ReactNode } from 'react';
+import { AccountProvider } from '../context/AccountContext';
 import { MatchProvider } from '../context/MatchContext';
+import { PlayersProvider } from '../context/PlayersContext';
 import { TournamentProvider } from '../context/TournamentContext';
+import { TitleSync } from '../context/Titles';
 import { I18nProvider } from '../i18n/I18nContext';
+import { ensureDemoOctava } from '../lib/demoOctava';
 import { colors } from '../theme';
+
+function DemoGate({ children }: { children: ReactNode }) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    ensureDemoOctava()
+      .catch(() => undefined)
+      .finally(() => setReady(true));
+  }, []);
+  if (!ready) return null;
+  return children;
+}
 
 export default function RootLayout() {
   return (
     <I18nProvider>
+      <DemoGate>
+      <AccountProvider>
+      <PlayersProvider>
       <MatchProvider>
         <TournamentProvider>
+          <TitleSync>
           <StatusBar style="light" />
           <Stack
             screenOptions={{
@@ -26,8 +46,12 @@ export default function RootLayout() {
             <Stack.Screen name="tournament/new" />
             <Stack.Screen name="tournament/[id]" />
           </Stack>
+          </TitleSync>
         </TournamentProvider>
       </MatchProvider>
+      </PlayersProvider>
+      </AccountProvider>
+      </DemoGate>
     </I18nProvider>
   );
 }

@@ -6,13 +6,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { CourtWash } from './CourtWash';
+import { PlayerSlot } from './PlayerSlot';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '../i18n/I18nContext';
 import { usePresentCopy } from '../i18n/presentCopy';
+import { useTitleLookup } from '../context/Titles';
 import { playerLabel, teamLabel } from '../lib/present';
 import {
   createMatchConfig,
@@ -68,16 +69,17 @@ export function MatchSetupForm({
   const [setsFormat, setSetsFormat] = useState<SetsFormat>(initial.setsFormat);
   const [deuceRule, setDeuceRule] = useState<DeuceRule>(initial.deuceRule);
   const [superTiebreak, setSuperTiebreak] = useState(initial.decidingSuperTiebreak);
-  const [names, setNames] = useState<[string, string, string, string]>([
-    initial.names[0][0],
-    initial.names[0][1],
-    initial.names[1][0],
-    initial.names[1][1],
+  const [slots, setSlots] = useState<[PlayerSlotState, PlayerSlotState, PlayerSlotState, PlayerSlotState]>([
+    { id: initial.playerIds?.[0][0] ?? null, name: initial.names[0][0] },
+    { id: initial.playerIds?.[0][1] ?? null, name: initial.names[0][1] },
+    { id: initial.playerIds?.[1][0] ?? null, name: initial.names[1][0] },
+    { id: initial.playerIds?.[1][1] ?? null, name: initial.names[1][1] },
   ]);
   const [initialTeam, setInitialTeam] = useState<TeamIndex>(initial.initialServerTeam);
   const [initialPlayer, setInitialPlayer] = useState<PlayerIndex>(initial.initialServerPlayer);
   const [opponentPlayer, setOpponentPlayer] = useState<PlayerIndex>(initial.opponentFirstServer);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const titlesFor = useTitleLookup();
 
   const accent = accentFor(sport);
   const draft = useMemo(
@@ -86,8 +88,12 @@ export function MatchSetupForm({
         sport,
         format,
         names: [
-          [names[0], names[1]],
-          [names[2], names[3]],
+          [slots[0].name, slots[1].name],
+          [slots[2].name, slots[3].name],
+        ],
+        playerIds: [
+          [slots[0].id, slots[1].id],
+          [slots[2].id, slots[3].id],
         ],
         setsFormat,
         deuceRule,
@@ -96,10 +102,18 @@ export function MatchSetupForm({
         initialServerPlayer: format === 'singles' ? 0 : initialPlayer,
         opponentFirstServer: opponentPlayer,
       }),
-    [sport, format, names, setsFormat, deuceRule, superTiebreak, initialTeam, initialPlayer, opponentPlayer],
+    [sport, format, slots, setsFormat, deuceRule, superTiebreak, initialTeam, initialPlayer, opponentPlayer],
   );
 
-  const serverName = playerLabel(draft, initialTeam, format === 'singles' ? 0 : initialPlayer, copy);
+  function shownPlayer(team: TeamIndex, player: PlayerIndex) {
+    const index = (team === 0 ? 0 : 2) + player;
+    const raw = playerLabel(draft, team, player, copy);
+    const count = titlesFor(slots[index]?.id);
+    if (!slots[index]?.name.trim() || count <= 0) return raw;
+    return `${slots[index].name.trim()} ★${count}`;
+  }
+
+  const serverName = shownPlayer(initialTeam, format === 'singles' ? 0 : initialPlayer);
   const summary = [
     sport === 'padel' ? t('sport.padel') : t('sport.tennis'),
     format === 'doubles' ? t('sport.doubles') : t('sport.singles'),
@@ -123,12 +137,12 @@ export function MatchSetupForm({
           { team: 1 as TeamIndex, player: 1 as PlayerIndex },
         ] as const);
 
-  function updateName(index: number, value: string) {
-    setNames((current) => {
-      const next = [...current] as [string, string, string, string];
-      next[index] = value;
-      return next;
-    });
+  function pickPlayer(index: number, player: { id: string; name: string }) {
+    setSlots((current) => current.map((slot, item) => (item === index ? { id: player.id, name: player.name } : slot)) as typeof current);
+  }
+
+  function clearPlayer(index: number) {
+    setSlots((current) => current.map((slot, item) => (item === index ? { id: null, name: '' } : slot)) as typeof current);
   }
 
   function submit() {
@@ -178,19 +192,20 @@ export function MatchSetupForm({
         />
 
         <SectionLabel accent={accent}>{format === 'doubles' ? t('form.pairs') : t('form.players')}</SectionLabel>
+        <Text style={styles.note}>{t('player.hint')}</Text>
         {format === 'singles' ? (
           <View style={styles.stack}>
-            <Field label={t('label.playerN', { n: 1 })} value={names[0]} placeholder={t('label.playerN', { n: 1 })} accent={accent} onChangeText={(value) => updateName(0, value)} />
-            <Field label={t('label.playerN', { n: 2 })} value={names[2]} placeholder={t('label.playerN', { n: 2 })} accent={accent} onChangeText={(value) => updateName(2, value)} />
+            <NameSlot index={0} label={t('label.playerN', { n: 1 })} slots={slots} onPick={pickPlayer} onClear={clearPlayer} />
+            <NameSlot index={2} label={t('label.playerN', { n: 2 })} slots={slots} onPick={pickPlayer} onClear={clearPlayer} />
           </View>
         ) : (
           <View style={styles.stack}>
             <Text style={styles.pairLabel}>{t('label.pairN', { n: 1 })}</Text>
-            <Field label={t('label.playerLetter', { letter: 'A' })} value={names[0]} placeholder={t('label.playerLetter', { letter: 'A' })} accent={accent} onChangeText={(value) => updateName(0, value)} />
-            <Field label={t('label.playerLetter', { letter: 'B' })} value={names[1]} placeholder={t('label.playerLetter', { letter: 'B' })} accent={accent} onChangeText={(value) => updateName(1, value)} />
+            <NameSlot index={0} label={t('label.playerLetter', { letter: 'A' })} slots={slots} onPick={pickPlayer} onClear={clearPlayer} />
+            <NameSlot index={1} label={t('label.playerLetter', { letter: 'B' })} slots={slots} onPick={pickPlayer} onClear={clearPlayer} />
             <Text style={[styles.pairLabel, styles.pairGap]}>{t('label.pairN', { n: 2 })}</Text>
-            <Field label={t('label.playerLetter', { letter: 'C' })} value={names[2]} placeholder={t('label.playerLetter', { letter: 'C' })} accent={accent} onChangeText={(value) => updateName(2, value)} />
-            <Field label={t('label.playerLetter', { letter: 'D' })} value={names[3]} placeholder={t('label.playerLetter', { letter: 'D' })} accent={accent} onChangeText={(value) => updateName(3, value)} />
+            <NameSlot index={2} label={t('label.playerLetter', { letter: 'C' })} slots={slots} onPick={pickPlayer} onClear={clearPlayer} />
+            <NameSlot index={3} label={t('label.playerLetter', { letter: 'D' })} slots={slots} onPick={pickPlayer} onClear={clearPlayer} />
           </View>
         )}
 
@@ -247,11 +262,11 @@ export function MatchSetupForm({
                   setInitialPlayer(choice.player);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel={t('form.servesFirst', { name: playerLabel(draft, choice.team, choice.player, copy) })}
+                accessibilityLabel={t('form.servesFirst', { name: shownPlayer(choice.team, choice.player) })}
                 style={[styles.chip, selected && { borderColor: accent, backgroundColor: `${accent}22` }]}
               >
                 <Text style={[styles.chipText, selected && { color: colors.text }]}>
-                  {playerLabel(draft, choice.team, choice.player, copy)}
+                  {shownPlayer(choice.team, choice.player)}
                 </Text>
               </Pressable>
             );
@@ -269,11 +284,11 @@ export function MatchSetupForm({
                     key={player}
                     onPress={() => setOpponentPlayer(player)}
                     accessibilityRole="button"
-                    accessibilityLabel={t('form.opponentServe', { name: playerLabel(draft, otherTeam, player, copy) })}
+                    accessibilityLabel={t('form.opponentServe', { name: shownPlayer(otherTeam, player) })}
                     style={[styles.chip, selected && { borderColor: accent, backgroundColor: `${accent}22` }]}
                   >
                     <Text style={[styles.chipText, selected && { color: colors.text }]}>
-                      {playerLabel(draft, otherTeam, player, copy)}
+                      {shownPlayer(otherTeam, player)}
                     </Text>
                   </Pressable>
                 );
@@ -328,6 +343,33 @@ function SectionLabel({ accent, children }: { accent: string; children: string }
   );
 }
 
+type PlayerSlotState = { id: string | null; name: string };
+
+function NameSlot({
+  index,
+  label,
+  slots,
+  onPick,
+  onClear,
+}: {
+  index: number;
+  label: string;
+  slots: PlayerSlotState[];
+  onPick: (index: number, player: { id: string; name: string }) => void;
+  onClear: (index: number) => void;
+}) {
+  return (
+    <PlayerSlot
+      label={label}
+      playerId={slots[index]?.id ?? null}
+      name={slots[index]?.name ?? ''}
+      excludeIds={slots.filter((slot, item) => item !== index && slot.id).map((slot) => slot.id as string)}
+      onPick={(player) => onPick(index, player)}
+      onClear={() => onClear(index)}
+    />
+  );
+}
+
 function SportCard({
   label,
   selected,
@@ -349,41 +391,6 @@ function SportCard({
       <Icon name="tennisball" color={selected ? accent : colors.dim} size={28} />
       <Text style={[styles.sportLabel, selected && { color: colors.text }]}>{label}</Text>
     </Pressable>
-  );
-}
-
-function Field({
-  label,
-  value,
-  placeholder,
-  accent,
-  onChangeText,
-}: {
-  label: string;
-  value: string;
-  placeholder: string;
-  accent: string;
-  onChangeText: (value: string) => void;
-}) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor={colors.dim}
-        style={[styles.input, focused && { borderColor: accent }]}
-        autoCorrect={false}
-        autoCapitalize="words"
-        maxLength={24}
-        returnKeyType="done"
-        selectionColor={accent}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
-    </View>
   );
 }
 

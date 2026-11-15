@@ -8,6 +8,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { CourtWash } from '../components/CourtWash';
 import { Icon } from '../components/Icon';
 import { useMatch } from '../context/MatchContext';
+import { useTitleLookup } from '../context/Titles';
 import { useT } from '../i18n/I18nContext';
 import { usePresentCopy } from '../i18n/presentCopy';
 import { useElapsedClock } from '../hooks/useElapsedClock';
@@ -37,6 +38,7 @@ export default function MatchScreen() {
   const elapsed = useElapsedClock(match?.timer ?? null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const titlesFor = useTitleLookup();
 
   useEffect(() => {
     if (!ready) return;
@@ -67,7 +69,14 @@ export default function MatchScreen() {
   const won = setsWon(state);
   const chips = scoreChips(state, copy);
   const scoreFont = landscape ? 72 : Math.round(Math.min(112, Math.max(76, width * 0.23)));
-  const serverName = playerLabel(config, server.team, server.playerIndex, copy);
+
+  function named(team: TeamIndex, player: 0 | 1) {
+    const label = playerLabel(config, team, player, copy);
+    const count = titlesFor(config.teams[team].playerIds?.[player]);
+    return count > 0 ? `${label} ★${count}` : label;
+  }
+
+  const serverName = named(server.team, server.playerIndex);
 
   function score(team: TeamIndex) {
     const result = addPoint(team);
@@ -233,7 +242,7 @@ export default function MatchScreen() {
                           numberOfLines={1}
                           adjustsFontSizeToFit
                         >
-                          {playerLabel(config, team, player, copy)}
+                          {named(team, player)}
                         </Text>
                       </View>
                     );

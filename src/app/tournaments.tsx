@@ -1,15 +1,19 @@
 import { router, type Href } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../components/Icon';
 import { useTournaments } from '../context/TournamentContext';
 import { useT } from '../i18n/I18nContext';
+import { categoryShortKey } from '../lib/category';
 import { colors } from '../theme';
 
 export default function TournamentsScreen() {
   const insets = useSafeAreaInsets();
   const { t } = useT();
   const { ready, tournaments } = useTournaments();
+  const [showFinished, setShowFinished] = useState(false);
+  const visible = tournaments.filter((tournament) => (tournament.status === 'finished') === showFinished);
 
   return (
     <ScrollView
@@ -35,15 +39,28 @@ export default function TournamentsScreen() {
         <Text style={styles.createText}>{t('tour.new')}</Text>
       </Pressable>
 
+      <Pressable
+        accessibilityRole="button"
+        style={styles.archive}
+        onPress={() => setShowFinished((current) => !current)}
+      >
+        <Text style={styles.archiveText}>{showFinished ? t('tour.showActive') : t('tour.showFinished')}</Text>
+      </Pressable>
+
       {!ready ? <Text style={styles.empty}>{t('home.loading')}</Text> : null}
-      {ready && tournaments.length === 0 ? (
+      {ready && !showFinished && visible.length === 0 ? (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>{t('tour.empty')}</Text>
           <Text style={styles.empty}>{t('tour.emptyHint')}</Text>
         </View>
       ) : null}
+      {ready && showFinished && visible.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>{t('tour.finishedEmpty')}</Text>
+        </View>
+      ) : null}
 
-      {tournaments.map((tournament) => (
+      {visible.map((tournament) => (
         <Pressable
           key={tournament.id}
           accessibilityRole="button"
@@ -53,7 +70,7 @@ export default function TournamentsScreen() {
           <View style={styles.cardCopy}>
             <Text style={styles.cardTitle}>{tournament.name}</Text>
             <Text style={styles.cardMeta}>
-              {t('tour.pairCount', { n: tournament.pairs.length })} · {t('tour.court', { n: tournament.courts })} ·{' '}
+              {t(categoryShortKey(tournament.category))} · {t('tour.pairCount', { n: tournament.pairs.length })} · {t('tour.court', { n: tournament.courts })} ·{' '}
               {t('tour.matches', { n: tournament.matches.filter((match) => match.status !== 'bye').length })}
             </Text>
           </View>
@@ -83,6 +100,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   createText: { color: colors.ink, fontSize: 17, fontWeight: '800' },
+  archive: {
+    minHeight: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  archiveText: { color: colors.text, fontSize: 16, fontWeight: '800' },
   emptyCard: {
     marginTop: 8,
     borderRadius: 22,

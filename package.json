@@ -32,7 +32,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "tsx --test src/lib/scoringEngine.test.ts src/lib/tournament.test.ts",
+    "test": "tsx --test src/lib/scoringEngine.test.ts src/lib/tournament.test.ts src/lib/account.test.ts src/lib/players.test.ts src/lib/category.test.ts src/lib/titles.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "private": true

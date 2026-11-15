@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildSlots, createFixture, eachDate, isHardDay, parseSetScores, scoreForWinner, setsForBracket, type Pair, type TimeSlot } from './tournament';
+import { acceptMatchScore, buildSlots, createFixture, eachDate, isHardDay, isLegalSet, parseSetScores, scoreForWinner, setsForBracket, type Pair, type TimeSlot } from './tournament';
 
 function pair(id: string, preferred: string[] = []): Pair {
   return { id, playerA: id, playerB: '', phone: '', preferredSlotIds: preferred };
@@ -34,6 +34,38 @@ describe('tournament fixture', () => {
     ]);
     assert.deepEqual(parseSetScores(''), []);
     assert.equal(parseSetScores('retirado'), null);
+  });
+
+  it('rejects a set that is not won by two once it goes past 6-4', () => {
+    assert.equal(isLegalSet(6, 1), true);
+    assert.equal(isLegalSet(7, 5), true);
+    assert.equal(isLegalSet(7, 6), true);
+    assert.equal(isLegalSet(8, 6), true);
+    assert.equal(isLegalSet(8, 16), false);
+    assert.equal(isLegalSet(6, 5), false);
+    assert.equal(isLegalSet(7, 4), false);
+    const bad = acceptMatchScore(
+      [
+        { a: '6', b: '1' },
+        { a: '1', b: '6' },
+        { a: '6', b: '1' },
+        { a: '6', b: '1' },
+        { a: '8', b: '16' },
+      ],
+      3,
+    );
+    assert.equal('kind' in bad && bad.kind, 'extra');
+    const illegal = acceptMatchScore([{ a: '8', b: '16' }], 1);
+    assert.equal('kind' in illegal && illegal.kind, 'set');
+    const decided = acceptMatchScore(
+      [
+        { a: '6', b: '1' },
+        { a: '3', b: '6' },
+        { a: '7', b: '5' },
+      ],
+      3,
+    );
+    assert.equal('score' in decided && decided.winner, 'a');
   });
 
   it('puts the injury score on the winner and shows each pair its games', () => {

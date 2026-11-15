@@ -14,6 +14,7 @@ export type Phase = 'regular' | 'tiebreak' | 'superTiebreak';
 
 export interface Team {
   players: string[];
+  playerIds?: Array<string | null>;
 }
 
 export interface MatchConfig {
@@ -33,6 +34,7 @@ export interface SetupInput {
   sport: Sport;
   format: MatchFormat;
   names: [[string, string], [string, string]];
+  playerIds?: [[string | null, string | null], [string | null, string | null]];
   setsFormat: SetsFormat;
   deuceRule: DeuceRule;
   /** At 6-6, play the tie-break to 11 instead of 7. Both need a two-point margin. */
@@ -109,6 +111,14 @@ function cleanName(value: string): string {
   return value.trim().replace(/\s+/g, ' ').slice(0, 24);
 }
 
+function teamFrom(input: SetupInput, side: 0 | 1, singles: boolean): Team {
+  const names = singles ? [cleanName(input.names[side][0])] : [cleanName(input.names[side][0]), cleanName(input.names[side][1])];
+  const ids = (singles ? [input.playerIds?.[side][0] ?? null] : [input.playerIds?.[side][0] ?? null, input.playerIds?.[side][1] ?? null]).map(
+    (id) => id || null,
+  );
+  return ids.some(Boolean) ? { players: names, playerIds: ids } : { players: names };
+}
+
 function partner(player: PlayerIndex): PlayerIndex {
   return player === 0 ? 1 : 0;
 }
@@ -116,8 +126,8 @@ function partner(player: PlayerIndex): PlayerIndex {
 export function createMatchConfig(input: SetupInput): MatchConfig {
   const singles = input.format === 'singles';
   const teams: [Team, Team] = [
-    { players: singles ? [cleanName(input.names[0][0])] : [cleanName(input.names[0][0]), cleanName(input.names[0][1])] },
-    { players: singles ? [cleanName(input.names[1][0])] : [cleanName(input.names[1][0]), cleanName(input.names[1][1])] },
+    teamFrom(input, 0, singles),
+    teamFrom(input, 1, singles),
   ];
 
   const serverOrder: MatchConfig['serverOrder'] = [
@@ -326,6 +336,10 @@ export function configToSetupInput(config: MatchConfig): SetupInput {
     names: [
       [config.teams[0].players[0] ?? '', config.teams[0].players[1] ?? ''],
       [config.teams[1].players[0] ?? '', config.teams[1].players[1] ?? ''],
+    ],
+    playerIds: [
+      [config.teams[0].playerIds?.[0] ?? null, config.teams[0].playerIds?.[1] ?? null],
+      [config.teams[1].playerIds?.[0] ?? null, config.teams[1].playerIds?.[1] ?? null],
     ],
     setsFormat: config.setsFormat,
     deuceRule: config.deuceRule,

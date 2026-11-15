@@ -1,4 +1,7 @@
+import { type Category } from './category';
+import { setsNeededToWin, type SetsFormat } from './scoringEngine';
 export type TournamentFormat = 'roundRobin' | 'knockout';
+export type TournamentStatus = 'active' | 'finished';
 export type MatchStatus = 'scheduled' | 'finished' | 'walkover' | 'bye';
 
 export interface TimeSlot {
@@ -19,6 +22,8 @@ export interface Pair {
   playerA: string;
   playerB: string;
   phone: string;
+  playerAId?: string | null;
+  playerBId?: string | null;
   preferredSlotIds: string[];
 }
 
@@ -41,9 +46,13 @@ export interface Tournament {
   version: 1;
   id: string;
   name: string;
+  category: Category;
   courts: number;
   matchMinutes: number;
   format: TournamentFormat;
+  /** 1, 3 or 5: a match stops when one side wins the majority. */
+  setsFormat: SetsFormat;
+  status: TournamentStatus;
   walkoverScore: string;
   downloadUrl: string;
   days: TournamentDay[];
@@ -53,6 +62,65 @@ export interface Tournament {
 }
 
 export const DEFAULT_WALKOVER = '6-3, 6-3';
+
+export function parseSetsFormat(value: unknown): SetsFormat {
+  const number = typeof value === 'string' ? Number(value) : value;
+  if (number === 1 || number === 3 || number === 5) return number;
+  return 3;
+}
+
+export function parseTournamentStatus(value: unknown): TournamentStatus {
+  return value === 'finished' ? 'finished' : 'active';
+}
+
+/** A finished set: 6-0 through 6-4, 7-5, 7-6, or any longer score won by exactly two games. */
+export function isLegalSet(a: number, b: number): boolean {
+  if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0 || a === b) return false;
+  const high = Math.max(a, b);
+  const low = Math.min(a, b);
+  if (high === 6) return low <= 4;
+  if (high === 7 && low === 6) return true;
+  return high >= 7 && low >= 5 && high - low === 2;
+}
+
+export type ScoreProblem = { kind: 'set'; set: number } | { kind: 'extra' } | { kind: 'short' };
+
+export interface AcceptedScore {
+  score: string;
+  winner: 'a' | 'b';
+}
+
+function gamesOf(value: string): number | null {
+  const match = /^(\d+)/.exec(value.trim());
+  if (!match) return null;
+  return Number(match[1]);
+}
+
+/** Keeps a score only when every set is legal and one side has already won the match. */
+export function acceptMatchScore(sets: SetScore[], format: SetsFormat): AcceptedScore | ScoreProblem {
+  const needed = setsNeededToWin(format);
+  let winsA = 0;
+  let winsB = 0;
+  const played: SetScore[] = [];
+  for (let index = 0; index < sets.length; index += 1) {
+    const rawA = sets[index]?.a.trim() ?? '';
+    const rawB = sets[index]?.b.trim() ?? '';
+    if (!rawA && !rawB) {
+      const later = sets.slice(index + 1).some((set) => set.a.trim() || set.b.trim());
+      if (later) return { kind: 'set', set: index + 1 };
+      break;
+    }
+    if (played.length >= format || winsA >= needed || winsB >= needed) return { kind: 'extra' };
+    const a = gamesOf(rawA);
+    const b = gamesOf(rawB);
+    if (a == null || b == null || !isLegalSet(a, b)) return { kind: 'set', set: index + 1 };
+    played.push({ a: rawA, b: rawB });
+    if (a > b) winsA += 1;
+    else winsB += 1;
+  }
+  if (played.length === 0 || (winsA < needed && winsB < needed)) return { kind: 'short' };
+  return { score: formatSetScores(played), winner: winsA > winsB ? 'a' : 'b' };
+}
 
 export function pairName(pair: Pair | undefined): string {
   if (!pair) return '';

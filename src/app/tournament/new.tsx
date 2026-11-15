@@ -3,6 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DateRangeCalendar } from '../../components/DateRangeCalendar';
+import { CategoryPicker } from '../../components/CategoryPicker';
+import { PlayerSlot } from '../../components/PlayerSlot';
+import { usePlayers } from '../../context/PlayersContext';
 import { useTournaments } from '../../context/TournamentContext';
 import { formatLongDay, formatSlotWhen } from '../../i18n/format';
 import { useT } from '../../i18n/I18nContext';
@@ -15,6 +18,8 @@ import {
   type Tournament,
   type TournamentFormat,
 } from '../../lib/tournament';
+import { DEFAULT_CATEGORY, categoryConflict, categoryShortKey, type Category } from '../../lib/category';
+import { type SetsFormat } from '../../lib/scoringEngine';
 import { colors } from '../../theme';
 
 interface DraftPair {
@@ -22,23 +27,28 @@ interface DraftPair {
   playerA: string;
   playerB: string;
   phone: string;
+  playerAId: string | null;
+  playerBId: string | null;
   preferredSlotIds: string[];
 }
 
 const RANGE_LIMIT = 45;
 
 function blankPair(): DraftPair {
-  return { id: createId('pair'), playerA: '', playerB: '', phone: '', preferredSlotIds: [] };
+  return { id: createId('pair'), playerA: '', playerB: '', phone: '', playerAId: null, playerBId: null, preferredSlotIds: [] };
 }
 
 export default function NewTournamentScreen() {
   const insets = useSafeAreaInsets();
   const { t, locale } = useT();
   const { rememberedDownloadUrl, rememberDownloadUrl, saveTournament } = useTournaments();
+  const { players } = usePlayers();
   const [name, setName] = useState('');
+  const [category, setCategory] = useState<Category>(DEFAULT_CATEGORY);
   const [courts, setCourts] = useState(2);
   const [minutes, setMinutes] = useState(90);
   const [format, setFormat] = useState<TournamentFormat>('roundRobin');
+  const [setsFormat, setSetsFormat] = useState<SetsFormat>(3);
   const [walkover, setWalkover] = useState(DEFAULT_WALKOVER);
   const [downloadUrl, setDownloadUrl] = useState(rememberedDownloadUrl);
   const [rangeStart, setRangeStart] = useState<string | null>(null);
@@ -62,6 +72,10 @@ export default function NewTournamentScreen() {
       .map((date) => ({ date, start: dayStart, end: dayEnd }));
   }, [rangeStart, rangeEnd, skipped, dayStart, dayEnd]);
   const slots = useMemo(() => buildSlots(days, minutes), [days, minutes]);
+  const conflict = useMemo(
+    () => categoryConflict(pairs.flatMap((pair) => [pair.playerAId, pair.playerBId]), players, category),
+    [pairs, players, category],
+  );
 
   useEffect(() => {
     const ids = new Set(slots.map((slot) => slot.id));
@@ -125,13 +139,26 @@ export default function NewTournamentScreen() {
       setError(t('tour.needDay'));
       return;
     }
+    if (conflict) {
+      setError(
+        t('tour.categoryBlocked', {
+          name: conflict.name,
+          category: t(categoryShortKey(conflict.category)),
+          tournament: t(categoryShortKey(category)),
+        }),
+      );
+      return;
+    }
     const tournament: Tournament = {
       version: 1,
       id: createId('cup'),
       name: name.trim() || t('tour.namePlaceholder'),
+      category,
       courts,
       matchMinutes: minutes,
       format,
+      setsFormat,
+      status: 'active',
       walkoverScore: walkover.trim() || DEFAULT_WALKOVER,
       downloadUrl: downloadUrl.trim(),
       days,
@@ -160,6 +187,19 @@ export default function NewTournamentScreen() {
 
       <Field label={t('tour.name')} value={name} placeholder={t('tour.namePlaceholder')} onChangeText={setName} />
 
+      <Text style={styles.section}>{t('tour.category')}</Text>
+      <Text style={styles.note}>{t('tour.categoryHint')}</Text>
+      <CategoryPicker value={category} onChange={setCategory} />
+      {conflict ? (
+        <Text style={styles.error}>
+          {t('tour.categoryBlocked', {
+            name: conflict.name,
+            category: t(categoryShortKey(conflict.category)),
+            tournament: t(categoryShortKey(category)),
+          })}
+        </Text>
+      ) : null}
+
       <Text style={styles.section}>{t('tour.courts')}</Text>
       <Stepper value={courts} min={1} max={16} onChange={setCourts} />
 
@@ -182,6 +222,26 @@ export default function NewTournamentScreen() {
         })}
       </View>
       <Text style={styles.note}>{format === 'roundRobin' ? t('tour.roundRobinHint') : t('tour.knockoutHint')}</Text>
+
+      <Text style={styles.section}>{t('tour.sets')}</Text>
+      <View style={styles.row}>
+        {([1, 3, 5] as const).map((option) => {
+          const selected = setsFormat === option;
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="button"
+              onPress={() => setSetsFormat(option)}
+              style={[styles.option, selected && styles.optionOn]}
+            >
+              <Text style={[styles.optionText, selected && styles.optionTextOn]}>
+                {option === 1 ? t('form.set1') : t('form.setsN', { n: option })}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.note}>{t('tour.setsHint')}</Text>
 
       <Text style={styles.section}>{t('tour.duration')}</Text>
       <View style={styles.row}>
@@ -244,6 +304,7 @@ export default function NewTournamentScreen() {
       ))}
 
       <Text style={styles.section}>{t('tour.pairs')}</Text>
+      <Text style={styles.note}>{t('player.hint')}</Text>
       <Text style={styles.note}>{t('tour.phoneHint')}</Text>
       {pairs.map((pair, index) => (
         <View key={pair.id} style={styles.pairCard}>
@@ -255,17 +316,23 @@ export default function NewTournamentScreen() {
               </Pressable>
             ) : null}
           </View>
-          <Field
+          <PlayerSlot
             label={t('tour.playerA')}
-            value={pair.playerA}
-            placeholder={t('tour.playerA')}
-            onChangeText={(value) => setPairs((current) => current.map((item) => (item.id === pair.id ? { ...item, playerA: value } : item)))}
+            playerId={pair.playerAId}
+            name={pair.playerA}
+            excludeIds={pair.playerBId ? [pair.playerBId] : []}
+            tournamentCategory={category}
+            onPick={(player) => setPairs((current) => current.map((item) => (item.id === pair.id ? { ...item, playerA: player.name, playerAId: player.id } : item)))}
+            onClear={() => setPairs((current) => current.map((item) => (item.id === pair.id ? { ...item, playerA: '', playerAId: null } : item)))}
           />
-          <Field
+          <PlayerSlot
             label={t('tour.playerB')}
-            value={pair.playerB}
-            placeholder={t('tour.playerB')}
-            onChangeText={(value) => setPairs((current) => current.map((item) => (item.id === pair.id ? { ...item, playerB: value } : item)))}
+            playerId={pair.playerBId}
+            name={pair.playerB}
+            excludeIds={pair.playerAId ? [pair.playerAId] : []}
+            tournamentCategory={category}
+            onPick={(player) => setPairs((current) => current.map((item) => (item.id === pair.id ? { ...item, playerB: player.name, playerBId: player.id } : item)))}
+            onClear={() => setPairs((current) => current.map((item) => (item.id === pair.id ? { ...item, playerB: '', playerBId: null } : item)))}
           />
           <Field
             label={t('tour.phone')}
@@ -441,7 +508,7 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 8,
   },
-  pairHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  pairHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   pairTitle: { color: colors.text, fontSize: 16, fontWeight: '800' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {

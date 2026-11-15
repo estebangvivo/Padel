@@ -3,7 +3,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmModal } from '../../components/ConfirmModal';
+import { CategoryPicker } from '../../components/CategoryPicker';
+import { PlayerSlot } from '../../components/PlayerSlot';
+import { usePlayers } from '../../context/PlayersContext';
 import { useTournaments } from '../../context/TournamentContext';
+import { useTitleLookup } from '../../context/Titles';
 import { formatSlotWhen } from '../../i18n/format';
 import { useT } from '../../i18n/I18nContext';
 import {
@@ -13,8 +17,8 @@ import {
   buildSlots,
   createFixture,
   createId,
+  acceptMatchScore,
   formatSetScores,
-  pairName,
   parseSetScores,
   scoreForWinner,
   setsForBracket,
@@ -24,6 +28,8 @@ import {
   type SetScore,
   type Tournament,
 } from '../../lib/tournament';
+import { DEFAULT_CATEGORY, categoryConflict, categoryShortKey, type Category } from '../../lib/category';
+import { type SetsFormat } from '../../lib/scoringEngine';
 import { colors } from '../../theme';
 
 const BLANK_SETS: SetScore[] = [
@@ -36,8 +42,12 @@ export default function TournamentScreen() {
   const { t, locale } = useT();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { ready, tournaments, saveTournament, removeTournament, rememberDownloadUrl } = useTournaments();
+  const { players } = usePlayers();
+  const titlesFor = useTitleLookup();
   const tournament = tournaments.find((item) => item.id === id);
   const [courts, setCourts] = useState(2);
+  const [setsFormat, setSetsFormat] = useState<SetsFormat>(3);
+  const [categoryPick, setCategoryPick] = useState<Category | null>(null);
   const [walkover, setWalkover] = useState(DEFAULT_WALKOVER);
   const [downloadUrl, setDownloadUrl] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -45,18 +55,32 @@ export default function TournamentScreen() {
   const [legacyScore, setLegacyScore] = useState<string | null>(null);
   const [slotId, setSlotId] = useState<string | null>(null);
   const [court, setCourt] = useState<number | null>(null);
+  const [scoreError, setScoreError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmFinish, setConfirmFinish] = useState(false);
   const [confirmRebuild, setConfirmRebuild] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState<Record<string, boolean>>({});
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const category = categoryPick ?? tournament?.category ?? DEFAULT_CATEGORY;
 
   useEffect(() => {
     if (!tournament) return;
     setCourts(tournament.courts);
+    setSetsFormat(tournament.setsFormat);
     setWalkover(tournament.walkoverScore);
     setDownloadUrl(tournament.downloadUrl);
+    setCategoryPick(null);
   }, [tournament?.id]);
 
   const editing = tournament?.matches.find((match) => match.id === editingId) ?? null;
+  const conflict = useMemo(() => {
+    if (!tournament) return null;
+    return categoryConflict(
+      tournament.pairs.flatMap((pair) => [pair.playerAId, pair.playerBId]),
+      players,
+      category,
+    );
+  }, [tournament, players, category]);
   const rounds = useMemo(() => {
     if (!tournament) return [];
     const numbers = [...new Set(tournament.matches.map((match) => match.round))].sort((a, b) => a - b);
@@ -85,11 +109,18 @@ export default function TournamentScreen() {
     );
   }
 
+  function titled(name: string, playerId?: string | null): string {
+    const count = titlesFor(playerId);
+    const clean = name.trim();
+    if (!clean) return '';
+    return count > 0 ? `${clean} ★${count}` : clean;
+  }
+
   function labelPair(pairId: string | null): string {
     if (!pairId) return t('tour.tbd');
     const pair = tournament?.pairs.find((item) => item.id === pairId);
     if (!pair) return t('tour.removedPair');
-    return pairName(pair) || t('tour.tbd');
+    return [titled(pair.playerA, pair.playerAId), titled(pair.playerB, pair.playerBId)].filter(Boolean).join(' / ') || t('tour.tbd');
   }
 
   function persist(next: Tournament) {
@@ -97,9 +128,13 @@ export default function TournamentScreen() {
   }
 
   function saveSettings() {
+    if (!tournament) return;
+    if (conflict && category !== tournament.category) return;
     const next = {
-      ...tournament!,
+      ...tournament,
+      category: conflict ? tournament.category : category,
       courts: Math.max(1, courts),
+      setsFormat,
       walkoverScore: walkover.trim() || DEFAULT_WALKOVER,
       downloadUrl: downloadUrl.trim(),
     };
@@ -118,7 +153,10 @@ export default function TournamentScreen() {
     const parsed = setsForBracket(match.score, match.status, match.winnerId === match.pairAId);
     setEditingId(match.id);
     setLegacyScore(parsed || !match.score.trim() ? null : match.score);
-    setSets(parsed && parsed.length > 0 ? parsed : BLANK_SETS.map((set) => ({ ...set })));
+    const limit = tournament?.setsFormat ?? 3;
+    const shown = parsed && parsed.length > 0 ? parsed.slice(0, limit) : BLANK_SETS.map((set) => ({ ...set }));
+    setSets(shown);
+    setScoreError(null);
     setSlotId(match.slotId);
     setCourt(match.court);
   }
@@ -129,9 +167,53 @@ export default function TournamentScreen() {
     return legacyScore?.trim() ?? '';
   }
 
+  function scoreIssue(problem: { kind: string; set?: number }): string {
+    if (problem.kind === 'extra') return t('tour.scoreExtra');
+    if (problem.kind === 'short') return t('tour.scoreShort');
+    return t('tour.scoreBadSet', { n: problem.set ?? 1 });
+  }
+
+  function commitScore(side: 'a' | 'b' | 'keep') {
+    if (!editing || !tournament) return;
+    const typed = sets.some((set) => set.a.trim() || set.b.trim());
+    if (!typed && side === 'keep') {
+      setScoreError(null);
+      writeMatch(editing.winnerId, scoreText(), editing.winnerId ? editing.status : 'scheduled');
+      return;
+    }
+    const result = acceptMatchScore(sets, tournament.setsFormat);
+    if (!('score' in result)) {
+      setScoreError(scoreIssue(result));
+      return;
+    }
+    if (side !== 'keep' && side !== result.winner) {
+      setScoreError(t('tour.scoreWinner'));
+      return;
+    }
+    const winnerId = result.winner === 'a' ? editing.pairAId : editing.pairBId;
+    setScoreError(null);
+    writeMatch(winnerId, result.score, 'finished');
+  }
+
+  function applyInjury(winnerIsA: boolean) {
+    if (!editing || !tournament) return;
+    const nextScore = scoreForWinner(walkover.trim() || DEFAULT_WALKOVER, winnerIsA);
+    const nextSets = parseSetScores(nextScore) ?? BLANK_SETS;
+    const result = acceptMatchScore(nextSets, tournament.setsFormat);
+    setLegacyScore(null);
+    setSets(nextSets);
+    if (!('score' in result)) {
+      setScoreError(scoreIssue(result));
+      return;
+    }
+    setScoreError(null);
+    writeMatch(winnerIsA ? editing.pairAId : editing.pairBId, nextScore, 'walkover');
+  }
+
   function patchSet(index: number, side: 'a' | 'b', value: string) {
     const clean = value.replace(/[^\d]/g, '').slice(0, 2);
     setLegacyScore(null);
+    setScoreError(null);
     setSets((current) => current.map((set, item) => (item === index ? { ...set, [side]: clean } : set)));
   }
 
@@ -177,7 +259,7 @@ export default function TournamentScreen() {
         return `${when}${where ? ` · ${where}` : ''} · ${t('common.vs')} ${labelPair(opponentId)}${result}`;
       });
     const hello = t('tour.whatsappHello', {
-      pair: pairName(pair) || t('label.pairN', { n: tournament!.pairs.indexOf(pair) + 1 }),
+      pair: [titled(pair.playerA, pair.playerAId), titled(pair.playerB, pair.playerBId)].filter(Boolean).join(' / ') || t('label.pairN', { n: tournament!.pairs.indexOf(pair) + 1 }),
       tournament: tournament!.name,
     });
     const link = tournament!.downloadUrl.trim();
@@ -213,7 +295,8 @@ export default function TournamentScreen() {
       <Text style={styles.kicker}>{tournament.format === 'knockout' ? t('tour.knockout') : t('tour.roundRobin')}</Text>
       <Text style={styles.title}>{tournament.name}</Text>
       <Text style={styles.muted}>
-        {t('tour.pairCount', { n: tournament.pairs.length })} · {t('tour.matches', { n: tournament.matches.filter((match) => match.status !== 'bye').length })}
+        {t(categoryShortKey(tournament.category))} · {tournament.setsFormat === 1 ? t('form.set1') : t('form.setsN', { n: tournament.setsFormat })} · {t('tour.pairCount', { n: tournament.pairs.length })} · {t('tour.matches', { n: tournament.matches.filter((match) => match.status !== 'bye').length })}
+        {tournament.status === 'finished' ? ` · ${t('tour.closed')}` : ''}
       </Text>
 
       <ScrollView
@@ -331,45 +414,43 @@ export default function TournamentScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t('tour.remove')}
-                  onPress={() => setSets((current) => current.filter((_, item) => item !== index))}
+                  onPress={() => {
+                    setScoreError(null);
+                    setSets((current) => current.filter((_, item) => item !== index));
+                  }}
                 >
                   <Text style={styles.setRemove}>×</Text>
                 </Pressable>
               ) : null}
             </View>
           ))}
-          {sets.length < 5 ? (
-            <Pressable accessibilityRole="button" onPress={() => setSets((current) => [...current, { a: '', b: '' }])}>
+          {sets.length < tournament.setsFormat ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setScoreError(null);
+                setSets((current) => [...current, { a: '', b: '' }]);
+              }}
+            >
               <Text style={styles.addSet}>{t('tour.addSet')}</Text>
             </Pressable>
           ) : null}
+          {scoreError ? <Text style={styles.error}>{scoreError}</Text> : null}
           {legacyScore ? <Text style={styles.note}>{legacyScore}</Text> : null}
           {editing.pairAId && editing.pairBId ? (
             <>
               <Text style={styles.note}>{t('tour.injuredHint')}</Text>
-              <Pressable accessibilityRole="button" style={styles.danger} onPress={() => {
-                const nextScore = scoreForWinner(walkover.trim() || DEFAULT_WALKOVER, false);
-                const nextSets = parseSetScores(nextScore) ?? BLANK_SETS;
-                setLegacyScore(null);
-                setSets(nextSets);
-                writeMatch(editing.pairBId, nextScore, 'walkover');
-              }}>
+              <Pressable accessibilityRole="button" style={styles.danger} onPress={() => applyInjury(false)}>
                 <Text style={styles.dangerText}>{t('tour.injuredA', { name: labelPair(editing.pairAId) })}</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" style={styles.danger} onPress={() => {
-                const nextScore = scoreForWinner(walkover.trim() || DEFAULT_WALKOVER, true);
-                const nextSets = parseSetScores(nextScore) ?? BLANK_SETS;
-                setLegacyScore(null);
-                setSets(nextSets);
-                writeMatch(editing.pairAId, nextScore, 'walkover');
-              }}>
+              <Pressable accessibilityRole="button" style={styles.danger} onPress={() => applyInjury(true)}>
                 <Text style={styles.dangerText}>{t('tour.injuredA', { name: labelPair(editing.pairBId) })}</Text>
               </Pressable>
               <View style={styles.row}>
-                <Pressable accessibilityRole="button" style={styles.option} onPress={() => writeMatch(editing.pairAId, scoreText(), 'finished')}>
+                <Pressable accessibilityRole="button" style={styles.option} onPress={() => commitScore('a')}>
                   <Text style={styles.optionText}>{t('tour.winner')}: {labelPair(editing.pairAId)}</Text>
                 </Pressable>
-                <Pressable accessibilityRole="button" style={styles.option} onPress={() => writeMatch(editing.pairBId, scoreText(), 'finished')}>
+                <Pressable accessibilityRole="button" style={styles.option} onPress={() => commitScore('b')}>
                   <Text style={styles.optionText}>{t('tour.winner')}: {labelPair(editing.pairBId)}</Text>
                 </Pressable>
               </View>
@@ -377,7 +458,7 @@ export default function TournamentScreen() {
           ) : (
             <Text style={styles.note}>{t('tour.noOpponent')}</Text>
           )}
-          <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => writeMatch(editing.winnerId, scoreText(), editing.winnerId ? editing.status : 'scheduled')}>
+          <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => commitScore('keep')}>
             <Text style={styles.secondaryText}>{t('common.save')}</Text>
           </Pressable>
           {editing.winnerId ? (
@@ -391,6 +472,37 @@ export default function TournamentScreen() {
       ) : null}
 
       <Text style={styles.section}>{t('tour.settings')}</Text>
+      <Text style={styles.label}>{t('tour.category')}</Text>
+      <Text style={styles.note}>{t('tour.categoryHint')}</Text>
+      <CategoryPicker value={category} onChange={setCategoryPick} />
+      {conflict ? (
+        <Text style={styles.error}>
+          {t('tour.categoryBlocked', {
+            name: conflict.name,
+            category: t(categoryShortKey(conflict.category)),
+            tournament: t(categoryShortKey(category)),
+          })}
+        </Text>
+      ) : null}
+      <Text style={styles.label}>{t('tour.sets')}</Text>
+      <Text style={styles.note}>{t('tour.setsHint')}</Text>
+      <View style={styles.choiceRow}>
+        {([1, 3, 5] as const).map((option) => {
+          const selected = setsFormat === option;
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="button"
+              onPress={() => setSetsFormat(option)}
+              style={[styles.option, selected && styles.optionOn]}
+            >
+              <Text style={[styles.optionText, selected && styles.chipTextOn]}>
+                {option === 1 ? t('form.set1') : t('form.setsN', { n: option })}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
       <Text style={styles.label}>{t('tour.courts')}</Text>
       <Stepper value={courts} min={1} max={16} onChange={setCourts} />
       <Field label={t('tour.walkover')} value={walkover} onChangeText={setWalkover} />
@@ -400,13 +512,24 @@ export default function TournamentScreen() {
         <Text style={styles.secondaryText}>{t('common.save')}</Text>
       </Pressable>
 
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: rosterOpen }}
+        style={styles.secondary}
+        onPress={() => setRosterOpen((current) => !current)}
+      >
+        <Text style={styles.secondaryText}>{rosterOpen ? t('tour.hideRoster') : t('tour.showRoster')}</Text>
+      </Pressable>
+
+      {rosterOpen ? (
+        <>
       <Text style={styles.section}>{t('tour.notify')}</Text>
       <Text style={styles.note}>{t('tour.notifyHint')}</Text>
       <Text style={styles.note}>{t('tour.noPhone')}</Text>
       {tournament.pairs.map((pair, index) => (
         <View key={pair.id} style={styles.pairRow}>
           <View style={styles.pairCopy}>
-            <Text style={styles.matchTeams}>{pairName(pair) || t('label.pairN', { n: index + 1 })}</Text>
+            <Text style={styles.matchTeams}>{[titled(pair.playerA, pair.playerAId), titled(pair.playerB, pair.playerBId)].filter(Boolean).join(' / ') || t('label.pairN', { n: index + 1 })}</Text>
             <Text style={styles.matchMeta}>{pair.phone || t('tour.noPhone')}</Text>
           </View>
           <Pressable accessibilityRole="button" style={styles.whatsapp} onPress={() => void notify(pair)}>
@@ -427,8 +550,24 @@ export default function TournamentScreen() {
               <Text style={styles.remove}>{t('tour.remove')}</Text>
             </Pressable>
           </View>
-          <Field label={t('tour.playerA')} value={pair.playerA} onChangeText={(value) => patchPair(pair.id, { playerA: value })} />
-          <Field label={t('tour.playerB')} value={pair.playerB} onChangeText={(value) => patchPair(pair.id, { playerB: value })} />
+          <PlayerSlot
+            label={t('tour.playerA')}
+            playerId={pair.playerAId ?? null}
+            name={pair.playerA}
+            excludeIds={pair.playerBId ? [pair.playerBId] : []}
+            tournamentCategory={category}
+            onPick={(player) => patchPair(pair.id, { playerA: player.name, playerAId: player.id })}
+            onClear={() => patchPair(pair.id, { playerA: '', playerAId: null })}
+          />
+          <PlayerSlot
+            label={t('tour.playerB')}
+            playerId={pair.playerBId ?? null}
+            name={pair.playerB}
+            excludeIds={pair.playerAId ? [pair.playerAId] : []}
+            tournamentCategory={category}
+            onPick={(player) => patchPair(pair.id, { playerB: player.name, playerBId: player.id })}
+            onClear={() => patchPair(pair.id, { playerB: '', playerBId: null })}
+          />
           <Field label={t('tour.phone')} value={pair.phone} onChangeText={(value) => patchPair(pair.id, { phone: value })} />
           {tournament.slots.length > 0 ? (
             <Pressable
@@ -477,18 +616,46 @@ export default function TournamentScreen() {
         onPress={() =>
           persist({
             ...tournament,
-            pairs: [...tournament.pairs, { id: createId('pair'), playerA: '', playerB: '', phone: '', preferredSlotIds: [] }],
+            pairs: [...tournament.pairs, { id: createId('pair'), playerA: '', playerB: '', phone: '', playerAId: null, playerBId: null, preferredSlotIds: [] }],
           })
         }
       >
         <Text style={styles.secondaryText}>{t('tour.addPair')}</Text>
       </Pressable>
+        </>
+      ) : null}
       <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => setConfirmRebuild(true)}>
         <Text style={styles.secondaryText}>{t('tour.regenerate')}</Text>
       </Pressable>
+      {tournament.status === 'finished' ? (
+        <Pressable
+          accessibilityRole="button"
+          style={styles.secondary}
+          onPress={() => persist({ ...tournament, status: 'active' })}
+        >
+          <Text style={styles.secondaryText}>{t('tour.reopen')}</Text>
+        </Pressable>
+      ) : (
+        <Pressable accessibilityRole="button" style={styles.secondary} onPress={() => setConfirmFinish(true)}>
+          <Text style={styles.secondaryText}>{t('tour.close')}</Text>
+        </Pressable>
+      )}
       <Pressable accessibilityRole="button" onPress={() => setConfirmDelete(true)}>
         <Text style={styles.remove}>{t('common.delete')}</Text>
       </Pressable>
+
+      <ConfirmModal
+        visible={confirmFinish}
+        title={t('tour.closeTitle')}
+        message={t('tour.closeMessage')}
+        confirmLabel={t('tour.close')}
+        onCancel={() => setConfirmFinish(false)}
+        onConfirm={() => {
+          setConfirmFinish(false);
+          persist({ ...tournament, status: 'finished' });
+          router.replace('/tournaments' as Href);
+        }}
+      />
 
       <ConfirmModal
         visible={confirmDelete}
@@ -517,8 +684,10 @@ export default function TournamentScreen() {
           const next: Tournament = {
             ...tournament,
             courts: nextCourts,
+            setsFormat,
             walkoverScore: walkover.trim() || DEFAULT_WALKOVER,
             downloadUrl: downloadUrl.trim(),
+            category: conflict ? tournament.category : category,
             slots,
             matches: createFixture(tournament.pairs, slots, nextCourts, tournament.format),
           };
@@ -567,6 +736,7 @@ const styles = StyleSheet.create({
   kicker: { color: colors.padel, fontSize: 12, fontWeight: '800', letterSpacing: 1.4 },
   title: { color: colors.text, fontSize: 32, fontWeight: '800' },
   muted: { color: colors.muted, fontSize: 15 },
+  error: { color: colors.danger, fontSize: 14, fontWeight: '700', lineHeight: 20 },
   link: { color: colors.muted, fontSize: 16, fontWeight: '700' },
   section: { color: colors.text, fontSize: 13, fontWeight: '800', letterSpacing: 1.1, textTransform: 'uppercase', marginTop: 18 },
   label: { color: colors.dim, fontSize: 12, fontWeight: '700' },
@@ -673,6 +843,8 @@ const styles = StyleSheet.create({
   },
   dangerText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800', textAlign: 'center' },
   row: { gap: 8 },
+  choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  optionOn: { backgroundColor: colors.padel, borderColor: colors.padel },
   option: {
     minHeight: 44,
     borderRadius: 14,
@@ -695,7 +867,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   whatsappText: { color: colors.ink, fontSize: 14, fontWeight: '800' },
-  pairHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  pairHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   step: {
     width: 44,

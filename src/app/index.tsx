@@ -4,9 +4,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { Icon } from '../components/Icon';
 import { MatchSetupForm } from '../components/MatchSetupForm';
+import { useAccount } from '../context/AccountContext';
 import { useMatch } from '../context/MatchContext';
 import { useT } from '../i18n/I18nContext';
 import { usePresentCopy } from '../i18n/presentCopy';
+import { categoryShortKey } from '../lib/category';
+import { usePlayerTitles } from '../context/Titles';
 import { teamLabel } from '../lib/present';
 import type { SetupInput } from '../lib/scoringEngine';
 import { accentFor, colors } from '../theme';
@@ -28,6 +31,8 @@ const NEW_MATCH: SetupInput = {
 
 export default function SetupScreen() {
   const { t, openLanguage } = useT();
+  const { account, openAccount } = useAccount();
+  const profileTitles = usePlayerTitles(account?.id);
   const copy = usePresentCopy();
   const { ready, match, startMatch, clearMatch } = useMatch();
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -61,6 +66,15 @@ export default function SetupScreen() {
         }
         header={
           <>
+            {account ? (
+              <Pressable accessibilityRole="button" style={styles.profile} onPress={openAccount}>
+                <View style={styles.profileCopy}>
+                  <Text style={styles.profileKicker}>{t('account.mine')}</Text>
+                  <Text style={styles.profileName}>{account.name}{profileTitles > 0 ? ` ★${profileTitles}` : ''} · {t(categoryShortKey(account.category))}</Text>
+                </View>
+                <Icon name="chevron-forward" color={colors.muted} size={18} />
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               style={styles.champCard}
@@ -176,6 +190,20 @@ const styles = StyleSheet.create({
   champKicker: { color: colors.ink, fontSize: 11, fontWeight: '800', letterSpacing: 1.2, opacity: 0.7 },
   champTitle: { color: colors.ink, fontSize: 22, fontWeight: '800' },
   champHint: { color: colors.ink, fontSize: 14, lineHeight: 19, opacity: 0.8 },
+  profile: {
+    minHeight: 64,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  profileCopy: { flex: 1, gap: 2 },
+  profileKicker: { color: colors.padel, fontSize: 11, fontWeight: '800', letterSpacing: 1.1 },
+  profileName: { color: colors.text, fontSize: 18, fontWeight: '800' },
   language: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4 },
   languageText: { color: colors.muted, fontSize: 14, fontWeight: '700' },
 });

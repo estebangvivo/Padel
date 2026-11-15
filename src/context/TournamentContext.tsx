@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { Tournament } from '../lib/tournament';
+import { parseSetsFormat, parseTournamentStatus, type Tournament } from '../lib/tournament';
+import { parseCategory } from '../lib/category';
 
 const STORAGE_KEY = 'contador-padel:tournaments:v1';
 const URL_KEY = 'contador-padel:download-url';
@@ -21,15 +22,22 @@ function parseList(raw: string | null): Tournament[] {
   try {
     const value = JSON.parse(raw) as Tournament[];
     if (!Array.isArray(value)) return [];
-    return value.filter(
-      (item) =>
-        item?.version === 1 &&
-        typeof item.id === 'string' &&
-        Array.isArray(item.pairs) &&
-        Array.isArray(item.matches) &&
-        Array.isArray(item.slots) &&
-        Array.isArray(item.days),
-    );
+    return value
+      .filter(
+        (item) =>
+          item?.version === 1 &&
+          typeof item.id === 'string' &&
+          Array.isArray(item.pairs) &&
+          Array.isArray(item.matches) &&
+          Array.isArray(item.slots) &&
+          Array.isArray(item.days),
+      )
+      .map((item) => ({
+        ...item,
+        category: parseCategory(item.category),
+        setsFormat: parseSetsFormat(item.setsFormat),
+        status: parseTournamentStatus(item.status),
+      }));
   } catch {
     return [];
   }
