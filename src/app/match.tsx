@@ -1,8 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useKeepAwake } from 'expo-keep-awake';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ColorValue } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CourtWash } from '../components/CourtWash';
@@ -12,7 +12,8 @@ import { useTitleLookup } from '../context/Titles';
 import { useT } from '../i18n/I18nContext';
 import { usePresentCopy } from '../i18n/presentCopy';
 import { useElapsedClock } from '../hooks/useElapsedClock';
-import { hapticPoint, hapticSuccess, hapticUndo } from '../lib/haptics';
+import { useVolumeKeys } from '../hooks/useVolumeKeys';
+import { hapticPoint, hapticSuccess, hapticUndo, hapticVolumeSide } from '../lib/haptics';
 import {
   alertCopy,
   alertHeadline,
@@ -39,6 +40,32 @@ export default function MatchScreen() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const titlesFor = useTitleLookup();
+  const volumeBlocked = useRef(false);
+  volumeBlocked.current = confirmReset || confirmLeave;
+
+  function award(team: TeamIndex, fromVolume: boolean) {
+    if (fromVolume && volumeBlocked.current) return;
+    const result = addPoint(team);
+    if (result === 'match') hapticSuccess();
+    else if (result === 'point') {
+      if (fromVolume) hapticVolumeSide(team);
+      else hapticPoint();
+    }
+  }
+
+  function undoPoint() {
+    if (!canUndo) return;
+    hapticUndo();
+    undo();
+  }
+
+  useVolumeKeys(ready && !!match && match.state.status === 'live', {
+    onPoint: (team) => award(team, true),
+    onUndo: () => {
+      if (volumeBlocked.current) return;
+      undoPoint();
+    },
+  });
 
   useEffect(() => {
     if (!ready) return;
@@ -78,18 +105,6 @@ export default function MatchScreen() {
 
   const serverName = named(server.team, server.playerIndex);
 
-  function score(team: TeamIndex) {
-    const result = addPoint(team);
-    if (result === 'match') hapticSuccess();
-    else if (result === 'point') hapticPoint();
-  }
-
-  function onUndo() {
-    if (!canUndo) return;
-    hapticUndo();
-    undo();
-  }
-
   return (
     <View style={styles.screen}>
       <CourtWash accent={accent} />
@@ -98,7 +113,7 @@ export default function MatchScreen() {
           <Pressable
             testID="undo"
             style={[styles.control, !canUndo && styles.controlDisabled]}
-            onPress={onUndo}
+            onPress={undoPoint}
             disabled={!canUndo}
             accessibilityRole="button"
             accessibilityLabel={t('match.undoA11y')}
@@ -171,6 +186,8 @@ export default function MatchScreen() {
           ))}
         </ScrollView>
 
+        {Platform.OS === 'android' ? <Text style={styles.volumeHint}>{t('match.volumeHint')}</Text> : null}
+
         {mode ? (
           <View style={[styles.mode, state.phase === 'superTiebreak' && { borderColor: accent }]}>
             <Text style={[styles.modeText, { color: state.phase === 'superTiebreak' ? accent : colors.tiebreak }]}>{mode}</Text>
@@ -215,7 +232,7 @@ export default function MatchScreen() {
             <Pressable
               key={team}
               testID={`score-team-${team}`}
-              onPress={() => score(team)}
+              onPress={() => award(team, false)}
               accessibilityRole="button"
               accessibilityLabel={t('match.addPoint', { name: teamLabel(config, team, copy) })}
               android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
@@ -412,7 +429,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   changeText: { color: colors.ink, fontSize: 15, fontWeight: '900', letterSpacing: 1.6 },
-  court: { flex: 1, flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingTop: 10 },
+  volumeHint: { color: colors.dim, fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  court: { flex: 1, flexDirection: 'row', direction: 'ltr', gap: 8, paddingHorizontal: 12, paddingTop: 10 },
   half: {
     flex: 1,
     borderRadius: 26,

@@ -1,9 +1,9 @@
 {
   "expo": {
-    "name": "Contador Pádel",
+    "name": "PadelProApp",
     "slug": "contador-padel",
     "scheme": "contadorpadel",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -13,7 +13,7 @@
       "bundleIdentifier": "com.contadorpadel.app"
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 4,
       "package": "com.contadorpadel.app",
       "adaptiveIcon": {
         "backgroundColor": "#07090C",

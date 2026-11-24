@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manual de Contador Pádel</title>
+  <style>
+    :root {
+      --bg: #07090c;
+      --surface: #111820;
+      --line: #314056;
+      --ink: #e8eef6;
+      --muted: #8b9bb0;
+      --accent: #d2f34a;
+      --danger: #ff3b4e;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 17px/1.55 "Segoe UI", system-ui, sans-serif;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    header.cover {
+      padding: 64px 24px 40px;
+      background:
+        radial-gradient(900px 320px at 10% -10%, rgba(210, 243, 74, 0.16), transparent 60%),
+        var(--bg);
+      border-bottom: 1px solid var(--line);
+    }
+    header.cover p.kicker {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0 0 12px; font-size: 42px; line-height: 1.1; letter-spacing: -0.03em; }
+    .lede { max-width: 640px; color: var(--muted); margin: 0; }
+    .layout {
+      display: grid;
+      grid-template-columns: 240px minmax(0, 760px);
+      gap: 40px;
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+    nav {
+      position: sticky;
+      top: 16px;
+      align-self: start;
+      max-height: calc(100vh - 32px);
+      overflow: auto;
+      padding-right: 8px;
+    }
+    nav ol { margin: 0; padding: 0; list-style: none; }
+    nav a {
+      display: block;
+      color: var(--muted);
+      font-size: 14px;
+      padding: 6px 0;
+    }
+    nav a:hover { color: var(--ink); text-decoration: none; }
+    main section {
+      padding: 28px 0 8px;
+      border-top: 1px solid var(--line);
+    }
+    h2 { margin: 0 0 10px; font-size: 28px; letter-spacing: -0.02em; }
+    h3 { margin: 22px 0 6px; font-size: 18px; }
+    p { margin: 0 0 12px; }
+    ol.steps, ul { margin: 0 0 14px; padding-left: 1.2em; }
+    li { margin: 0 0 6px; }
+    .note {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: var(--muted);
+      margin: 14px 0 8px;
+    }
+    .note strong { color: var(--ink); }
+    figure {
+      margin: 18px 0 8px;
+      text-align: center;
+    }
+    figure img {
+      width: min(100%, 390px);
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: #000;
+    }
+    figcaption {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 8px 0 16px;
+      font-size: 15px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 600; }
+    code {
+      font-family: Consolas, ui-monospace, monospace;
+      font-size: 0.92em;
+      color: var(--accent);
+    }
+    @media (max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      nav { position: static; max-height: none; }
+      h1 { font-size: 34px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="cover">
+    <p class="kicker">Contador Pádel · versión 1.1.0</p>
+    <h1>Manual de usuario</h1>
+    <p class="lede">Cómo armar un partido, cargar el marcador y llevar un campeonato. Las capturas son de la app en el teléfono, con los datos que había cargados en esta computadora al hacer el manual.</p>
+  </header>
+
+  <div class="layout">
+    <nav>
+      <ol>
+        <li><a href="#inicio">Inicio</a></li>
+        <li><a href="#partido">Armar un partido</a></li>
+        <li><a href="#jugadores">Jugadores</a></li>
+        <li><a href="#reglas">Reglas del marcador</a></li>
+        <li><a href="#en-vivo">Durante el partido</a></li>
+        <li><a href="#editar">Corregir el partido</a></li>
+        <li><a href="#campeonatos">Campeonatos</a></li>
+        <li><a href="#finalizados">Finalizados</a></li>
+        <li><a href="#cuadro">El cuadro</a></li>
+        <li><a href="#resultado">Cargar un resultado</a></li>
+        <li><a href="#participantes">Participantes y WhatsApp</a></li>
+        <li><a href="#nuevo">Nuevo campeonato</a></li>
+        <li><a href="#perfil">Tu perfil</a></li>
+        <li><a href="#idioma">Idioma</a></li>
+        <li><a href="#categorias">Categorías y estrellas</a></li>
+        <li><a href="#datos">Dónde se guarda</a></li>
+      </ol>
+    </nav>
+
+    <main>
+      <section id="inicio">
+        <h2>Inicio</h2>
+        <p>Al abrir la app ves el alta de un partido nuevo. Arriba está tu perfil, el acceso a los campeonatos y el idioma. Si dejaste un partido sin terminar, aparece la tarjeta <strong>Partido en curso</strong>.</p>
+        <figure>
+          <img src="img/01-inicio.png" alt="Pantalla de inicio con el perfil, campeonatos y un partido en curso" />
+          <figcaption>Inicio: perfil, campeonatos y el partido que quedó abierto.</figcaption>
+        </figure>
+        <ul>
+          <li><strong>Continuar</strong> vuelve al marcador tal como lo dejaste.</li>
+          <li><strong>Descartar</strong> borra ese partido en curso. Pide confirmación.</li>
+          <li><strong>Campeonatos</strong> abre la lista de torneos.</li>
+          <li><strong>Tu perfil</strong> es el nombre con el que te anotan y tu categoría.</li>
+        </ul>
+      </section>
+
+      <section id="partido">
+        <h2>Armar un partido</h2>
+        <p>En la misma pantalla de inicio bajás hasta el formulario. Elegís deporte, si es singles o dobles, y los jugadores. Al final tocá <strong>Empezar partido</strong>.</p>
+        <figure>
+          <img src="img/02-partido.png" alt="Formulario de deporte, modalidad y parejas" />
+          <figcaption>Pádel o tenis, singles o dobles, y un lugar por jugador.</figcaption>
+        </figure>
+        <ol class="steps">
+          <li>Elegí <strong>Pádel</strong> o <strong>Tenis</strong>.</li>
+          <li>Elegí <strong>Singles</strong> o <strong>Dobles</strong>. En dobles hay cuatro lugares: pareja 1 (A y B) y pareja 2 (C y D).</li>
+          <li>Tocá cada <strong>Buscar jugador</strong> y elegí a alguien de la lista, o cargalo si no está.</li>
+          <li>Elegí la cantidad de sets, qué pasa en 40 iguales, el desempate y quién saca.</li>
+          <li>Tocá <strong>Empezar partido</strong>.</li>
+        </ol>
+        <p class="note"><strong>Si ya hay un partido en curso,</strong> empezar otro pide confirmación: el marcador anterior se descarta.</p>
+      </section>
+
+      <section id="jugadores">
+        <h2>Jugadores</h2>
+        <p>Al tocar <strong>Buscar jugador</strong> se abre un desplegable. Arriba está <strong>Agregar jugador</strong> y debajo la lista, ordenada, con la categoría y la estrella si tiene títulos. Escribí para filtrar. Si el nombre no existe, el botón pasa a ser <strong>Agregar jugador «nombre»</strong>.</p>
+        <figure>
+          <img src="img/03-buscar.png" alt="Desplegable de jugadores con el botón Agregar jugador" />
+          <figcaption>El listado flota sobre el campo. Se cierra al elegir a alguien o al tocar afuera.</figcaption>
+        </figure>
+        <p>Si el jugador es nuevo, el formulario pide nombre, apellido, teléfono y categoría. Solo el nombre es obligatorio. El teléfono es el de WhatsApp, con código de país, y se usa después para avisar los horarios del torneo.</p>
+        <figure>
+          <img src="img/17-alta.png" alt="Formulario para agregar un jugador nuevo" />
+          <figcaption>Alta de un jugador. Si no elegís categoría, queda en 8va.</figcaption>
+        </figure>
+        <p>El mismo nombre y apellido, escrito igual, reutiliza al jugador que ya estaba. No se duplica.</p>
+      </section>
+
+      <section id="reglas">
+        <h2>Reglas del marcador</h2>
+        <p>Estas opciones están al armar el partido y también en <strong>Editar</strong> si el partido ya empezó. Cambiarlas no reinicia el marcador ni el reloj.</p>
+        <figure>
+          <img src="img/06-reglas.png" alt="Sets, ventaja, súper tie-break y saque inicial" />
+          <figcaption>Sets, 40 iguales, desempate y quién saca primero.</figcaption>
+        </figure>
+        <h3>Sets</h3>
+        <p>Podés jugar al mejor de <strong>1</strong>, <strong>3</strong> o <strong>5</strong> sets. Un set se gana con 6 games y dos de diferencia, o 7-5, o 7-6 en el desempate.</p>
+        <h3>En 40 iguales</h3>
+        <ul>
+          <li><strong>Ventaja:</strong> 40 iguales, ventaja y game. Si se pierde la ventaja, se vuelve a 40 iguales.</li>
+          <li><strong>Punto de oro:</strong> en 40 iguales el siguiente punto gana el game.</li>
+        </ul>
+        <h3>Desempate a 6-6</h3>
+        <ul>
+          <li>Con el <strong>súper tie-break</strong> apagado, se juega a 7 puntos, con diferencia de 2.</li>
+          <li>Con el interruptor prendido, se juega a 11 puntos, con diferencia de 2.</li>
+        </ul>
+        <p>El set queda como 7-6 y, entre paréntesis, los puntos del que perdió el desempate. El último set del partido es un set completo: no se reemplaza por un desempate suelto. En el desempate, el primer saque es un punto y después rota cada dos.</p>
+        <h3>Saque</h3>
+        <p>Elegí quién saca el primer punto y, en dobles, quién recibe ese primer saque del otro lado. Durante el partido el cartel de arriba dice quién está sacando.</p>
+      </section>
+
+      <section id="en-vivo">
+        <h2>Durante el partido</h2>
+        <p>Cada lado es una pareja. El número grande es el punto del game (0, 15, 30, 40). Abajo están los games del set. El pastille de arriba a la derecha de cada nombre es la cantidad de sets ganados.</p>
+        <figure>
+          <img src="img/04-marcador.png" alt="Marcador en vivo con match point" />
+          <figcaption>Marcador en vivo. El botón +1 suma un punto al lado que lo toca.</figcaption>
+        </figure>
+        <ul>
+          <li><strong>+1</strong> suma un punto. Si cierra el game, el set o el partido, el marcador avanza solo.</li>
+          <li><strong>Deshacer</strong> vuelve al punto anterior.</li>
+          <li><strong>Reiniciar</strong> pone el partido en cero. Pide confirmación. El reloj también vuelve a empezar.</li>
+          <li><strong>Editar</strong> abre nombres, saque y reglas sin tocar el tanteador.</li>
+          <li><strong>Salir</strong> vuelve al inicio y deja el partido en curso. <strong>Continuar</strong> lo retoma.</li>
+        </ul>
+        <p>La barra roja avisa match point, set point o break point cuando corresponde. El reloj de arriba cuenta el tiempo que el partido lleva abierto. La pantalla no se apaga mientras estás en el marcador.</p>
+        <p>Cuando termina el partido, la app muestra el resumen con el resultado. Desde ahí podés compartir o volver al inicio.</p>
+      </section>
+
+      <section id="editar">
+        <h2>Corregir el partido</h2>
+        <p>Desde el marcador, <strong>Editar</strong> abre los mismos datos del alta. Sirve si te equivocaste de nombre, de saque o de regla a mitad del partido. El tanteador y el tiempo no se reinician. <strong>Cancelar</strong> descarta los cambios de esa pantalla.</p>
+        <figure>
+          <img src="img/05-editar.png" alt="Pantalla Editar datos de un partido en curso" />
+          <figcaption>Cada jugador ya elegido se puede cambiar. La categoría se ve al lado del nombre.</figcaption>
+        </figure>
+      </section>
+
+      <section id="campeonatos">
+        <h2>Campeonatos</h2>
+        <p>En <strong>Campeonatos</strong> ves los torneos activos. Cada fila dice la categoría, cuántas parejas hay, cuántas canchas y cuántos partidos. Tocá uno para abrir el cuadro.</p>
+        <figure>
+          <img src="img/07-campeonatos.png" alt="Lista de campeonatos activos" />
+          <figcaption>Arriba: nuevo campeonato, y el botón para ver los que ya cerraste.</figcaption>
+        </figure>
+      </section>
+
+      <section id="finalizados">
+        <h2>Finalizados</h2>
+        <p><strong>Ver finalizados</strong> muestra los torneos que cerraste. Siguen con todos los resultados. <strong>Ver activos</strong> vuelve a la lista de todos los días.</p>
+        <figure>
+          <img src="img/08-finalizados.png" alt="Lista de campeonatos finalizados con Copa octava" />
+          <figcaption>Un torneo finalizado no aparece entre los activos, pero se puede volver a abrir.</figcaption>
+        </figure>
+        <p>Dentro del torneo, <strong>Finalizar torneo</strong> pregunta si querés cerrarlo. Si confirmás, deja de figurar entre los activos y los resultados quedan guardados. <strong>Volver a activo</strong> lo devuelve a la lista principal. <strong>Eliminar</strong> lo borra.</p>
+      </section>
+
+      <section id="cuadro">
+        <h2>El cuadro</h2>
+        <p>Al entrar a un campeonato ves el cuadro, no la lista de gente. En eliminación, cada ronda está al lado de la anterior. Deslizá hacia la izquierda para ver cuartos, semis y la final. El ganador de cada partido pasa a la ronda siguiente.</p>
+        <figure>
+          <img src="img/09-cuadro.png" alt="Cuadro de eliminación de la Copa octava, ronda 1" />
+          <figcaption>Ronda 1 de una copa de 16 parejas. El nombre en verde es el que ganó.</figcaption>
+        </figure>
+        <figure>
+          <img src="img/10-final.png" alt="Final de la Copa octava" />
+          <figcaption>La final, al final del cuadro. La estrella al lado del nombre son los títulos de esa categoría.</figcaption>
+        </figure>
+        <p>En <strong>todos contra todos</strong> el cuadro es una tabla: cada pareja juega contra las demás.</p>
+      </section>
+
+      <section id="resultado">
+        <h2>Cargar un resultado</h2>
+        <p>Tocá un partido del cuadro. Se abre el editor: horario, un renglón por set y los botones de ganador. En un torneo al mejor de 3 sets no se pueden cargar más de 3.</p>
+        <figure>
+          <img src="img/13-resultado.png" alt="Editor de resultado con tres sets, lesión y ganador" />
+          <figcaption>Sets, lesión y ganador. Guardar recién escribe el resultado.</figcaption>
+        </figure>
+        <p>Un set es válido si es 6-0, 6-1, 6-2, 6-3, 6-4, 7-5 o 7-6. También vale un set más largo si el ganador llega al menos a 7, el perdedor al menos a 5 y la diferencia es exactamente 2 (7-5, 8-6, 9-7…). La app rechaza un 6-5, un 7-4 o un tanteador que no coincide con el ganador que marcaste.</p>
+        <ul>
+          <li><strong>Lesión</strong> da el partido por ganado a la otra pareja, con el resultado de lesión del torneo (por defecto 6-3, 6-3). Después podés corregir el marcador.</li>
+          <li><strong>Ganador</strong> confirma quién pasó. Tiene que coincidir con los sets.</li>
+          <li><strong>Guardar</strong> anota el resultado y arma la siguiente ronda si ya se puede.</li>
+          <li><strong>Borrar resultado</strong> deja el partido pendiente otra vez.</li>
+        </ul>
+        <p>El horario se elige entre los turnos del día. Si no hay uno, queda <strong>Sin horario</strong>.</p>
+      </section>
+
+      <section id="participantes">
+        <h2>Participantes y WhatsApp</h2>
+        <p>Bajá en la ficha del torneo. Ahí están la categoría, cuántos sets se juegan, las canchas, el resultado de una lesión y el link de la app. <strong>Guardar</strong> aplica esos cambios.</p>
+        <figure>
+          <img src="img/11-acciones.png" alt="Ajustes del torneo y botones de participantes, fixture y finalizar" />
+          <figcaption>La lista de parejas está escondida hasta que tocás Ver participantes.</figcaption>
+        </figure>
+        <p><strong>Ver participantes</strong> abre el aviso por WhatsApp y las parejas. <strong>Ocultar participantes</strong> las cierra de nuevo, para que el cuadro no quede tapado por una página larga.</p>
+        <figure>
+          <img src="img/12-participantes.png" alt="Lista de parejas con el botón Compartir de WhatsApp" />
+          <figcaption>Cada pareja tiene su botón Compartir. Sin teléfono, se abre el menú para elegir a quién mandárselo.</figcaption>
+        </figure>
+        <p><strong>Compartir</strong> arma un mensaje con los horarios de esa pareja y el link para bajar la app. Si el jugador tiene teléfono cargado, abre WhatsApp con ese número. Si no, dice que no hay número y abre el menú para compartir.</p>
+        <p>En cada pareja podés cambiar jugadores, sacar la pareja, anotar un horario en el que no pueden jugar y, abajo de todo, <strong>Agregar pareja</strong>. <strong>Rehacer fixture</strong> vuelve a armar el cuadro con las parejas actuales. Pedí confirmación antes: reemplaza el cuadro que ya estaba.</p>
+      </section>
+
+      <section id="nuevo">
+        <h2>Nuevo campeonato</h2>
+        <p>En la lista, <strong>Nuevo campeonato</strong>. Poné el nombre, la categoría, cuántas canchas hay, el formato y los sets. Después cargá las parejas y tocá <strong>Armar fixture</strong>.</p>
+        <figure>
+          <img src="img/14-nuevo.png" alt="Formulario de nuevo campeonato con categoría, canchas, formato y sets" />
+          <figcaption>8va es principiante. El número más chico es la categoría más alta.</figcaption>
+        </figure>
+        <ul>
+          <li><strong>Todos contra todos:</strong> cada pareja juega contra todas las demás.</li>
+          <li><strong>Eliminación:</strong> el que pierde queda afuera. Hacen falta al menos dos parejas.</li>
+          <li><strong>Canchas disponibles</strong> reparte los partidos en paralelo. Con 4 canchas, hasta cuatro partidos salen al mismo turno.</li>
+          <li>La categoría del torneo deja entrar a jugadores de esa categoría o de una más baja. Una 7ma no puede jugar una 8va. Una 8va sí puede jugar una 7ma.</li>
+        </ul>
+        <p class="note">Si alguien no puede anotarse, el campo lo dice con su nombre: es de una categoría mejor que la del torneo.</p>
+      </section>
+
+      <section id="perfil">
+        <h2>Tu perfil</h2>
+        <p>Tocá la tarjeta <strong>Tu perfil</strong> en el inicio. El nombre es el que usan los torneos para reconocerte. El teléfono es el de WhatsApp. La categoría es la tuya: si no elegís ninguna, queda en octava.</p>
+        <figure>
+          <img src="img/15-perfil.png" alt="Formulario del perfil con nombre, WhatsApp y categoría" />
+          <figcaption>Guardar perfil recién escribe el cambio. La cruz cierra sin guardar.</figcaption>
+        </figure>
+        <p>Cuando ganás un torneo, la categoría puede subir sola. Si ya subiste, no podés volver a una categoría más baja: el botón queda bloqueado.</p>
+      </section>
+
+      <section id="idioma">
+        <h2>Idioma</h2>
+        <p>En el inicio, <strong>Idioma</strong> abre la lista. El castellano es el que viene elegido. También están inglés, portugués, italiano, francés y árabe. Los códigos de categoría (8va, 7ma, 6ta…) se escriben igual en todos.</p>
+        <figure>
+          <img src="img/16-idioma.png" alt="Selector de idioma con castellano elegido" />
+          <figcaption>Elegí un idioma y se aplica enseguida. La cruz cierra el panel.</figcaption>
+        </figure>
+      </section>
+
+      <section id="categorias">
+        <h2>Categorías y estrellas</h2>
+        <p>El número más chico es el mejor nivel. 8va es principiante y 1ra es el máximo.</p>
+        <table>
+          <thead>
+            <tr><th>Categoría</th><th>Nivel</th><th>Qué significa</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>8va</td><td>Principiante</td><td>Recién empiezan: reglas, saque y devolución, todavía sin paredes.</td></tr>
+            <tr><td>7ma</td><td>Inicial</td><td>Peloteos cortos, globo y rebotes simples en la pared de fondo.</td></tr>
+            <tr><td>6ta</td><td>Intermedio bajo</td><td>Más regularidad, control básico en la red y primeras bandejas.</td></tr>
+            <tr><td>5ta</td><td>Intermedio</td><td>Buen dominio del rebote, incluso doble pared, y más ritmo.</td></tr>
+            <tr><td>4ta</td><td>Intermedio alto</td><td>Técnica completa, lectura táctica y paso de defensa a ataque.</td></tr>
+            <tr><td>3ra</td><td>Avanzado</td><td>Pelota rápida, pocos errores y definición constante en la red.</td></tr>
+            <tr><td>2da</td><td>Competitivo</td><td>Nivel semi-profesional, torneos provinciales y nacionales.</td></tr>
+            <tr><td>1ra</td><td>Máximo nivel</td><td>La élite local y nacional, incluido el circuito profesional.</td></tr>
+          </tbody>
+        </table>
+        <p>Los dos jugadores de la pareja que gana el torneo suman un título en la categoría de ese torneo. La estrella <strong>★N</strong> es la cantidad de títulos en la categoría actual. Con tres títulos en la misma categoría se sube un escalón: de 8va a 7ma, de 7ma a 6ta, y así hasta 1ra. En 1ra la estrella sigue contando y no hay otra categoría a la que subir. Cerrar el torneo con <strong>Finalizar</strong> no cambia las estrellas: ya se cuentan con el resultado de la final.</p>
+      </section>
+
+      <section id="datos">
+        <h2>Dónde se guarda</h2>
+        <p>Partidos, campeonatos, jugadores, el perfil y el idioma quedan en el teléfono, dentro de la app. No hace falta una cuenta ni internet para usar el marcador. Si desinstalás la app o borrás sus datos, esa información se pierde.</p>
+        <p>El celular y el navegador de la computadora no comparten la lista. Un campeonato que ves en uno no aparece en el otro hasta que lo cargues ahí.</p>
+        <p>Esta guía corresponde a la versión <strong>1.1.0</strong> de la app.</p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

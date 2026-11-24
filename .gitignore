@@ -39,3 +39,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+wear/local.properties
+wear/.gradle/
+wear/build/
+wear/app/build/
+wear/app/debug.keystore
+*.apk
