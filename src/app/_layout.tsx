@@ -42,6 +42,7 @@ export default function RootLayout() {
           >
             <Stack.Screen name="index" />
             <Stack.Screen name="new-match" />
+            <Stack.Screen name="watch-install" />
             <Stack.Screen name="match" options={{ gestureEnabled: false }} />
             <Stack.Screen name="edit" />
             <Stack.Screen name="summary" options={{ gestureEnabled: false }} />

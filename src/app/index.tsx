@@ -1,6 +1,6 @@
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CourtWash } from '../components/CourtWash';
@@ -39,8 +39,7 @@ export default function SetupScreen() {
         <CourtWash accent={colors.padel} />
         <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 28 }]}>
           <Text style={styles.kicker}>{t('home.kicker')}</Text>
-          <Text style={styles.title}>{t('home.brand')}</Text>
-          <View style={styles.titleRule} />
+          <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" accessibilityLabel={t('home.brand')} />
 
           {account ? (
             <Pressable accessibilityRole="button" style={styles.profile} onPress={openAccount}>
@@ -74,6 +73,17 @@ export default function SetupScreen() {
               <Text style={styles.champHint}>{t('home.tournamentsHint')}</Text>
             </View>
             <Icon name="chevron-forward" color={colors.ink} size={20} />
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.linkCard}
+            onPress={() => router.push('/watch-install' as Href)}
+          >
+            <View style={styles.watchCopy}>
+              <Text style={styles.linkTitle}>{t('home.watchInstall')}</Text>
+              <Text style={styles.watchHint}>{t('home.watchInstallHint')}</Text>
+            </View>
+            <Icon name="chevron-forward" color={colors.muted} size={18} />
           </Pressable>
           <Pressable accessibilityRole="button" onPress={openLanguage} style={styles.language}>
             <Icon name="language" color={colors.muted} size={16} />
@@ -133,8 +143,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20, gap: 8 },
   kicker: { color: colors.padel, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
-  title: { color: colors.text, fontSize: 36, fontWeight: '800', letterSpacing: -1 },
-  titleRule: { width: 42, height: 3, borderRadius: 2, backgroundColor: colors.padel, marginTop: 2, marginBottom: 8 },
+  logo: { width: '100%', aspectRatio: 493 / 357, marginTop: 4, marginBottom: 8 },
   resume: {
     marginTop: 12,
     borderRadius: 22,
@@ -165,6 +174,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   linkTitle: { color: colors.text, fontSize: 16, fontWeight: '700' },
+  watchCopy: { flex: 1, gap: 4 },
+  watchHint: { color: colors.muted, fontSize: 13, lineHeight: 18 },
   champCard: {
     marginTop: 8,
     borderRadius: 22,
