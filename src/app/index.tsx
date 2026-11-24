@@ -1,6 +1,6 @@
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { CourtWash } from '../components/CourtWash';
@@ -16,6 +16,9 @@ import { accentFor, colors } from '../theme';
 
 export default function SetupScreen() {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const logoWidth = windowWidth - 40;
+  const logoHeight = logoWidth * (357 / 493);
   const { t, openLanguage } = useT();
   const { account, openAccount } = useAccount();
   const profileTitles = usePlayerTitles(account?.id);
@@ -39,7 +42,12 @@ export default function SetupScreen() {
         <CourtWash accent={colors.padel} />
         <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 18, paddingBottom: insets.bottom + 28 }]}>
           <Text style={styles.kicker}>{t('home.kicker')}</Text>
-          <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" accessibilityLabel={t('home.brand')} />
+          <Image
+            source={require('../../assets/logo.png')}
+            style={[styles.logo, { width: logoWidth, height: logoHeight }]}
+            resizeMode="contain"
+            accessibilityLabel={t('home.brand')}
+          />
 
           {account ? (
             <Pressable accessibilityRole="button" style={styles.profile} onPress={openAccount}>
@@ -143,7 +151,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { paddingHorizontal: 20, gap: 8 },
   kicker: { color: colors.padel, fontSize: 12, fontWeight: '800', letterSpacing: 2 },
-  logo: { width: '100%', aspectRatio: 493 / 357, marginTop: 4, marginBottom: 8 },
+  logo: { alignSelf: 'center', marginTop: 4, marginBottom: 8 },
   resume: {
     marginTop: 12,
     borderRadius: 22,
